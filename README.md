@@ -1,11 +1,14 @@
 # Nightreign Relic Extractor
 
+[![Download Latest Release](https://img.shields.io/badge/Download-NightreignRelicExtractor.exe-2ea44f?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/hakimnouira/NightreignRelicExtractor/releases/latest)
+[![Direct Download](https://img.shields.io/badge/Direct_Download-.exe-blue?style=for-the-badge&logo=github)](https://github.com/hakimnouira/NightreignRelicExtractor/raw/main/NightreignRelicExtractor.exe)
+
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](#)
 [![Runtime](https://img.shields.io/badge/.NET_Framework-4.8-512BD4?logo=dotnet&logoColor=white)](#)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](#)
 [![Mode](https://img.shields.io/badge/Mode-Strict_Read--Only-brightgreen)](#)
 
-A fast, lightweight, and completely standalone Windows tool whose sole purpose is to extract your relic inventory from an **Elden Ring Nightreign** `.co2` or `.sl2` save file directly into **CSV** and **Excel (.xlsx)**.
+A fast, lightweight, and completely standalone Windows tool whose sole purpose is to extract your relic inventory from an **Elden Ring Nightreign** `.co2` or `.sl2` save file directly into **CSV** and **Excel (.xlsx)** — with a built-in **AI Build Optimizer Prompt** to generate custom builds in ChatGPT, Claude, or Gemini!
 
 ---
 
@@ -13,15 +16,38 @@ A fast, lightweight, and completely standalone Windows tool whose sole purpose i
 
 ---
 
-## Highlights
+## ⚡ Quick Download & Run (No Install Needed)
 
-- **Works on Any Windows PC**: Portable, native standalone application (`NightreignRelicExtractor.exe`). No Python, no Node.js, and no external runtime installations required. Works immediately on Windows 10 and 11.
-- **Strict Read-Only Guarantee**: Opens save files strictly with read-only access flags (`FileAccess.Read`, `FileShare.ReadWrite`). **Never modifies, overwrites, or alters your original save file**.
-- **Extracts Every Relic Instance**: Every physical relic instance in your save file becomes its own row. Duplicate relics (e.g. multiple *Grand Tranquil Scene* relics with different effects) are never merged.
-- **Accurate Unknown Effect Handling**: If an effect ID is not yet documented in community data dictionaries, the tool will **not** guess or skip the relic. It marks the effect name as `UNKNOWN` and preserves the exact original **Effect ID** and **Raw Value**.
+You do **not** need to install Python, Node.js, or any package managers. The program is 100% portable and runs on any Windows 10 or 11 PC:
+
+1. **[Click here to download NightreignRelicExtractor.exe](https://github.com/hakimnouira/NightreignRelicExtractor/raw/main/NightreignRelicExtractor.exe)** (or visit [Releases](https://github.com/hakimnouira/NightreignRelicExtractor/releases)).
+2. Double-click **`NightreignRelicExtractor.exe`** to open the interface.
+3. Click **Auto-Detect** (or **Browse...** to pick your `NR0000.co2`), then click **Extract Relics**.
+4. That's it! Your `relics.xlsx` and `relics.csv` files will appear immediately.
+
+---
+
+## 🤖 AI Build Optimizer (ChatGPT / Claude / Gemini)
+
+Once you extract your relics, you can turn your spreadsheet into custom, high-tier character builds using AI:
+
+1. Click **📋 Copy AI Build Prompt** inside the application (or view [PROMPT.md](PROMPT.md)).
+2. Open your favorite AI chatbot (**ChatGPT**, **Claude**, or **Gemini**).
+3. **Upload / attach your generated `relics.xlsx`** (or `relics.csv`).
+4. **Paste (Ctrl+V) the prompt** into the chat and send!
+
+The AI will analyze your actual relic inventory, enforce vessel color constraints and deep relic rules, and recommend the best 6-relic combinations for each character (Wylder, Guardian, Duchess, Recluse, etc.).
+
+---
+
+## Key Features
+
+- **Strict Read-Only Guarantee**: Opens save files strictly with `FileAccess.Read` and `FileShare.ReadWrite`. **Never modifies, overwrites, or touches your original save file** (verified via SHA-256 hash checks).
+- **Extracts Every Relic Instance**: Every physical relic in your save file becomes its own row. Duplicate relics (e.g. multiple *Grand Tranquil Scene* relics with different effect rolls) are never merged.
+- **Accurate Unknown Effect Handling**: If an effect ID is missing from community databases, the tool will **not** guess or skip the relic. It marks the effect name as `UNKNOWN` and preserves the exact original **Effect ID** and **Raw Value**.
 - **Dual Interface**:
-  - **GUI Mode**: Clean Elden Ring-themed interface with **Browse**, **Auto-Detect** (scans `%APPDATA%\Nightreign\`), drag-and-drop support, and one-click buttons to open CSV, Excel, or the destination folder.
-  - **CLI / Drag-to-EXE Mode**: Run from Command Prompt/PowerShell or drag your `.co2` file directly onto the executable icon.
+  - **GUI Mode**: Clean Elden Ring-themed window with **Browse**, **Auto-Detect** (scans `%APPDATA%\Nightreign\`), drag-and-drop support, and one-click buttons to open CSV, Excel, or copy the AI build prompt.
+  - **CLI / Drag-to-EXE Mode**: Run headless from PowerShell/Command Prompt or drag your `.co2` file directly onto the executable icon.
 
 ---
 
@@ -37,7 +63,7 @@ A fast, lightweight, and completely standalone Windows tool whose sole purpose i
 - Drag your `NR0000.co2` file directly onto the **`NightreignRelicExtractor.exe`** file icon in Windows Explorer.
 - The `relics.csv` and `relics.xlsx` files will be generated right next to your save file.
 
-### Method 3: Command Line
+### Method 3: Command Line (Headless)
 Open PowerShell or Command Prompt in the folder:
 ```powershell
 .\NightreignRelicExtractor.exe NR0000.co2

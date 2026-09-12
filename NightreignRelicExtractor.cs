@@ -103,6 +103,37 @@ namespace NightreignRelicExtractor
             { "約0.85倍", "~0.85x" }
         };
 
+        public static readonly string AI_BUILD_PROMPT =
+@"I have attached my extracted Elden Ring Nightreign relic inventory (relics.xlsx / relics.csv).
+
+Please act as an expert Elden Ring Nightreign build strategist. Analyze my exact relic inventory and create the best possible builds for my characters.
+
+### Game & Relic Rules:
+1. **Relic Capacity**: Each vessel equips up to 6 relics total:
+   - 3 Standard Relic slots (fit normal Relics and UniqueRelics).
+   - 3 Deep Relic slots (fit DeepRelics).
+2. **Slot Color Constraints**: Each vessel slot has a strict color requirement (Red, Blue, Yellow, Green). Relics must match their slot's color.
+3. **Character-Specific Perks**: Effects starting with character names (e.g. Wylder, Guardian, Duchess, Raider, Recluse, Scholar, Revenant, Executor) only activate when playing that specific character.
+4. **Stacking**: Stackable stat buffs and resistances combine, but effects marked 'Only 1 active (Left priority)' do not stack with duplicates.
+5. **No Hallucinated Relics**: Only recommend relics that actually exist in my attached inventory (match by Relic ID and Relic Name).
+
+### What I Want From You:
+1. **Top Character Builds**: Recommend the optimal 6-relic combination for:
+   - **Wylder** (Physical / Stagger / Skill spam)
+   - **Guardian** (Tank / Guard Counter / HP Regen)
+   - **Duchess** (Critical / Dagger / Sorcery)
+   - **Recluse** (Status effects / Blood loss / High DPS)
+   - Any other character you find strong synergies for in my inventory.
+2. **Build Breakdown For Each**:
+   - Chosen Vessel & Slot Colors
+   - List the 6 specific Relics (with their Relic ID, Name, Color, and active Effects)
+   - Synergy explanation & gameplay strategy
+3. **Inventory Advice**:
+   - Highlight the top 5 strongest 'god-roll' relics in my collection.
+   - Point out any useless duplicates that can safely be recycled or ignored.
+
+Please review the attached spreadsheet and generate my builds!";
+
         public class ItemInfo
         {
             public int Id;
@@ -820,6 +851,7 @@ namespace NightreignRelicExtractor
         private Button btnOpenCsv;
         private Button btnOpenExcel;
         private Button btnOpenFolder;
+        private Button btnCopyAiPrompt;
         private Label lblStatus;
 
         private Program.ExtractionResult lastResult = null;
@@ -997,7 +1029,7 @@ namespace NightreignRelicExtractor
             {
                 Text = "Open CSV",
                 Location = new Point(20, 418),
-                Width = 120,
+                Width = 95,
                 Height = 34,
                 BackColor = Color.FromArgb(40, 45, 55),
                 ForeColor = Color.White,
@@ -1013,8 +1045,8 @@ namespace NightreignRelicExtractor
             btnOpenExcel = new Button
             {
                 Text = "Open Excel",
-                Location = new Point(150, 418),
-                Width = 120,
+                Location = new Point(122, 418),
+                Width = 95,
                 Height = 34,
                 BackColor = Color.FromArgb(40, 45, 55),
                 ForeColor = Color.White,
@@ -1030,8 +1062,8 @@ namespace NightreignRelicExtractor
             btnOpenFolder = new Button
             {
                 Text = "Open Output Folder",
-                Location = new Point(280, 418),
-                Width = 160,
+                Location = new Point(224, 418),
+                Width = 145,
                 Height = 34,
                 BackColor = Color.FromArgb(40, 45, 55),
                 ForeColor = Color.White,
@@ -1043,6 +1075,36 @@ namespace NightreignRelicExtractor
             btnOpenFolder.Click += (s, e) => { if (lastResult != null && Directory.Exists(lastResult.SaveDirectory)) Process.Start("explorer.exe", lastResult.SaveDirectory); };
             this.Controls.Add(btnOpenFolder);
             btnOpenFolder.BringToFront();
+
+            btnCopyAiPrompt = new Button
+            {
+                Text = "📋 Copy AI Build Prompt",
+                Location = new Point(377, 418),
+                Width = 270,
+                Height = 34,
+                BackColor = Color.FromArgb(35, 52, 75),
+                ForeColor = Color.FromArgb(170, 215, 255),
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+            btnCopyAiPrompt.FlatAppearance.BorderColor = Color.FromArgb(65, 95, 135);
+            btnCopyAiPrompt.Click += (s, e) =>
+            {
+                try
+                {
+                    Clipboard.SetText(Program.AI_BUILD_PROMPT);
+                    lblStatus.Text = "AI Build Prompt copied to clipboard! Attach relics.xlsx in ChatGPT / Claude.";
+                    lblStatus.ForeColor = Color.FromArgb(120, 230, 120);
+                    MessageBox.Show(this, "The AI Build Optimizer Prompt has been copied to your clipboard!\n\nHow to use:\n1. Open ChatGPT, Claude, or Gemini.\n2. Attach your 'relics.xlsx' (or 'relics.csv') file.\n3. Paste (Ctrl+V) this prompt into the chat to generate custom builds.", "AI Prompt Copied", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "Failed to copy to clipboard: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+            this.Controls.Add(btnCopyAiPrompt);
+            btnCopyAiPrompt.BringToFront();
         }
 
         private void Form_DragEnter(object sender, DragEventArgs e)
