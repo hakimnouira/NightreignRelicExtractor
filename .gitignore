@@ -1,0 +1,18 @@
+# Personal save files (do not commit user saves)
+*.co2
+*.sl2
+
+# Generated outputs
+relics.csv
+relics.xlsx
+
+# Build artifacts & temp files
+*.pdb
+*.obj
+*.log
+.vs/
+bin/
+obj/
+
+# Cloned reference repo
+ERN_RelicForge/
