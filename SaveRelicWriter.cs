@@ -191,8 +191,29 @@ namespace NightreignRelicExtractor
             },
         };
 
-        public const int VESSEL_TABLE_START = 0x1BD3C;
-        public const int VESSEL_STRIDE = 28;
+        // === VESSEL TABLE LAYOUT (verified from save file analysis) ===
+        //
+        // Each entry = 28 bytes:
+        //   [+0x00]  uint32 = 0x00000000  (reserved)
+        //   [+0x04]  uint32 = 0x00000000  (reserved)
+        //   [+0x08]  uint32 = vesselId    (KEY — e.g. 1000=Wylder/Urn, 1001=Wylder/Goblet)
+        //   [+0x0C]  uint32 = relicSlot1  (relic ID or 0 = empty)
+        //   [+0x10]  uint32 = relicSlot2
+        //   [+0x14]  uint32 = relicSlot3
+        //   [+0x18]  uint32 = 0x00000000  (padding / slot4-6 not in this region)
+        //
+        // Entries are ordered by vesselId (1000, 1001, 1002, ... 2000, 2001, ...)
+        // First entry of first character starts at 0x1BDC4 in cleanData.
+        //
+        // NOTE: Only 3 relic slots are stored per entry in this region.
+        // The deep slots (4-6) appear to be handled separately or may not exist in this format.
+
+        public const int VESSEL_TABLE_START = 0x1BDC4; // verified: entry 0 (Wylder/Urn) starts here
+        public const int VESSEL_STRIDE = 28;            // 7 uint32s per entry
+        public const int VESSEL_ENTRY_KEY_OFFSET  = 8; // vesselId at +8 within entry
+        public const int VESSEL_ENTRY_RELIC_OFFSET = 12; // first relic slot at +12
+        public const int VESSEL_RELICS_PER_ENTRY  = 3;  // only 3 relics stored per entry
+
 
         public static int GetCharacterIndex(string charName)
         {
@@ -287,7 +308,7 @@ namespace NightreignRelicExtractor
 
                 uint marker = 0x0000FF01 + (uint)charIndex;
                 int markerPos = -1;
-                for (int p = 0x1B800; p < 0x1BD30; p += 4)
+                for (int p = 0x1B800; p < 0x1BE00; p += 4)
                 {
                     if (BitConverter.ToUInt32(cleanData, p) == marker)
                     {
@@ -304,9 +325,32 @@ namespace NightreignRelicExtractor
                 }
 
                 int vesselOffset = VESSEL_TABLE_START + (charIndex * 7 + vesselTypeIndex) * VESSEL_STRIDE;
-                for (int s = 0; s < 6; s++)
+
+                // Verify the vesselId key matches what we expect
+                uint storedVesselId = (vesselOffset + VESSEL_ENTRY_KEY_OFFSET + 4 <= cleanData.Length)
+                    ? BitConverter.ToUInt32(cleanData, vesselOffset + VESSEL_ENTRY_KEY_OFFSET)
+                    : 0;
+                // Expected vesselId = (charIndex+1)*1000 + vesselTypeIndex
+                uint expectedVesselId = (uint)((charIndex + 1) * 1000 + vesselTypeIndex);
+
+                // If key doesn't match, scan the table to find the right entry
+                if (storedVesselId != expectedVesselId && storedVesselId != 0)
                 {
-                    uint rId = BitConverter.ToUInt32(cleanData, vesselOffset + 4 + s * 4);
+                    for (int scan = 0; scan < 10 * 7; scan++)
+                    {
+                        int scanOff = VESSEL_TABLE_START + scan * VESSEL_STRIDE;
+                        if (scanOff + VESSEL_ENTRY_KEY_OFFSET + 4 > cleanData.Length) break;
+                        uint scanId = BitConverter.ToUInt32(cleanData, scanOff + VESSEL_ENTRY_KEY_OFFSET);
+                        if (scanId == expectedVesselId) { vesselOffset = scanOff; break; }
+                    }
+                }
+
+                // Read up to VESSEL_RELICS_PER_ENTRY (3) slots from this entry
+                for (int s = 0; s < VESSEL_RELICS_PER_ENTRY; s++)
+                {
+                    int slotOff = vesselOffset + VESSEL_ENTRY_RELIC_OFFSET + s * 4;
+                    if (slotOff + 4 > cleanData.Length) break;
+                    uint rId = BitConverter.ToUInt32(cleanData, slotOff);
                     info.Slots[s].RelicId = rId;
 
                     if (rId != 0)
@@ -333,6 +377,9 @@ namespace NightreignRelicExtractor
                         }
                     }
                 }
+                // Slots 4-6 (deep slots, indices 3-5) remain at default "Empty Slot"
+                // as the deep slot data is not stored in this vessel table region
+
             }
             catch { }
 
@@ -391,7 +438,7 @@ namespace NightreignRelicExtractor
             {
                 uint marker = 0x0000FF01 + (uint)c;
                 int markerPos = -1;
-                for (int p = 0x1B800; p < 0x1BD30; p += 4)
+                for (int p = 0x1B800; p < 0x1BE00; p += 4)
                 {
                     if (BitConverter.ToUInt32(cleanData, p) == marker)
                     {
@@ -406,6 +453,22 @@ namespace NightreignRelicExtractor
                     int v = (int)(activeVid % 1000);
                     int vesselOffset = VESSEL_TABLE_START + (c * 7 + v) * VESSEL_STRIDE;
 
+                    // Verify vesselId key in entry matches; scan if not
+                    if (vesselOffset + VESSEL_ENTRY_KEY_OFFSET + 4 <= cleanData.Length)
+                    {
+                        uint storedVid = BitConverter.ToUInt32(cleanData, vesselOffset + VESSEL_ENTRY_KEY_OFFSET);
+                        if (storedVid != activeVid)
+                        {
+                            for (int scan = 0; scan < 10 * 7; scan++)
+                            {
+                                int scanOff = VESSEL_TABLE_START + scan * VESSEL_STRIDE;
+                                if (scanOff + VESSEL_ENTRY_KEY_OFFSET + 4 > cleanData.Length) break;
+                                if (BitConverter.ToUInt32(cleanData, scanOff + VESSEL_ENTRY_KEY_OFFSET) == activeVid)
+                                { vesselOffset = scanOff; break; }
+                            }
+                        }
+                    }
+
                     var info = new CharacterLoadoutInfo
                     {
                         CharacterIndex = c,
@@ -414,9 +477,12 @@ namespace NightreignRelicExtractor
                         ActiveVesselName = GetVesselName(activeVid)
                     };
 
-                    for (int s = 0; s < 6; s++)
+                    // Only 3 relic slots stored per entry (normal slots)
+                    for (int s = 0; s < VESSEL_RELICS_PER_ENTRY; s++)
                     {
-                        uint rId = BitConverter.ToUInt32(cleanData, vesselOffset + 4 + s * 4);
+                        int slotOff = vesselOffset + VESSEL_ENTRY_RELIC_OFFSET + s * 4;
+                        if (slotOff + 4 > cleanData.Length) break;
+                        uint rId = BitConverter.ToUInt32(cleanData, slotOff);
                         if (rId != 0)
                         {
                             info.EquippedRelicIds.Add(rId);
@@ -494,7 +560,7 @@ namespace NightreignRelicExtractor
 
             uint marker = 0x0000FF01 + (uint)charIndex;
             int markerPos = -1;
-            for (int p = 0x1B800; p < 0x1BD30; p += 4)
+            for (int p = 0x1B800; p < 0x1BE00; p += 4)
             {
                 if (BitConverter.ToUInt32(cleanData, p) == marker)
                 {
@@ -521,16 +587,34 @@ namespace NightreignRelicExtractor
             int vesselTypeIndex = (int)(targetVesselId % 1000);
             int vesselOffset = VESSEL_TABLE_START + (charIndex * 7 + vesselTypeIndex) * VESSEL_STRIDE;
 
-            // 4. Write up to 6 relic slots
-            for (int s = 0; s < 6; s++)
+            // Verify the vesselId key in this entry; scan if needed
+            if (vesselOffset + VESSEL_ENTRY_KEY_OFFSET + 4 <= cleanData.Length)
+            {
+                uint storedVid = BitConverter.ToUInt32(cleanData, vesselOffset + VESSEL_ENTRY_KEY_OFFSET);
+                if (storedVid != targetVesselId)
+                {
+                    for (int scan = 0; scan < 10 * 7; scan++)
+                    {
+                        int scanOff = VESSEL_TABLE_START + scan * VESSEL_STRIDE;
+                        if (scanOff + VESSEL_ENTRY_KEY_OFFSET + 4 > cleanData.Length) break;
+                        if (BitConverter.ToUInt32(cleanData, scanOff + VESSEL_ENTRY_KEY_OFFSET) == targetVesselId)
+                        { vesselOffset = scanOff; break; }
+                    }
+                }
+            }
+
+            // 4. Write up to 3 relic slots (the save only stores 3 normal slots per vessel entry)
+            for (int s = 0; s < VESSEL_RELICS_PER_ENTRY; s++)
             {
                 uint rId = 0;
                 if (preset.RelicIds != null && s < preset.RelicIds.Count)
                 {
                     rId = preset.RelicIds[s];
                 }
-                BitConverter.GetBytes(rId).CopyTo(cleanData, vesselOffset + 4 + s * 4);
+                int slotOff = vesselOffset + VESSEL_ENTRY_RELIC_OFFSET + s * 4;
+                BitConverter.GetBytes(rId).CopyTo(cleanData, slotOff);
             }
+
 
             // 5. Copy cleanData back to dec
             cleanData.CopyTo(dec, 4);
