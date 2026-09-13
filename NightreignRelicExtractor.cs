@@ -161,12 +161,20 @@ namespace NightreignRelicExtractor
                 return 0;
             }
 
+            if (args.Length > 0 && args[0].Equals("--screenshot-builder", StringComparison.OrdinalIgnoreCase))
+            {
+                string shotPath = args.Length > 1 ? args[1] : "assets/screenshot_builder.png";
+                TakeBuilderScreenshot(shotPath);
+                return 0;
+            }
+
             if (args.Length > 0 && args[0].Equals("--screenshot-loadouts", StringComparison.OrdinalIgnoreCase))
             {
                 string shotPath = args.Length > 1 ? args[1] : "assets/screenshot_loadouts.png";
                 TakeLoadoutsScreenshot(shotPath);
                 return 0;
             }
+
 
             // If arguments provided and not explicitly requesting GUI, run in CLI mode
             if (args.Length > 0 && !args[0].Equals("--gui", StringComparison.OrdinalIgnoreCase))
@@ -234,7 +242,32 @@ namespace NightreignRelicExtractor
             }
         }
 
+        private static void TakeBuilderScreenshot(string outputPath)
+        {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            EnsureDatabasesLoaded();
+            using (var form = new MainForm())
+            {
+                form.Show();
+                form.ShowTab(1);
+                Application.DoEvents();
+                System.Threading.Thread.Sleep(500);
+                Application.DoEvents();
+
+                using (var bmp = new Bitmap(form.Width, form.Height))
+                {
+                    form.DrawToBitmap(bmp, new Rectangle(0, 0, form.Width, form.Height));
+                    string dir = Path.GetDirectoryName(outputPath);
+                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                    bmp.Save(outputPath, System.Drawing.Imaging.ImageFormat.Png);
+                }
+                form.Close();
+            }
+        }
+
         private static void TakeLoadoutsScreenshot(string outputPath)
+
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
@@ -929,9 +962,21 @@ namespace NightreignRelicExtractor
         private Panel pnlBuilderSlots;
         private Button btnBuilderSave;
         private Button btnBuilderPreset;
+        private Button btnBuilderBrowsePresets;
+        private Button btnBuilderCopyAIPrompt;
+        private Button btnBuilderImportAI;
         private Button btnBuilderClearAll;
         private Label lblBuilderSafety;
+        private Label lblHeaderTitle;
+        private Label lblHeaderSub;
+        private Label lblVersion;
+        private ComboBox cmbLanguage;
+
+        private Label lblFilePrompt;
+        private Label lblBuilderNormalHeader;
+        private Label lblBuilderDeepHeader;
         private VesselDetailInfo currentVesselDetail;
+
         private Panel[] slotPanels = new Panel[6];
         private Label[] lblSlotHeaders = new Label[6];
         private Label[] lblSlotReqColors = new Label[6];
@@ -1038,42 +1083,65 @@ namespace NightreignRelicExtractor
                 Padding = new Padding(18, 10, 18, 10)
             };
 
-            Label lblTitle = new Label
+            lblHeaderTitle = new Label
             {
-                Text = "Nightreign Relic Extractor & Loadout Switcher",
-                Font = new Font("Segoe UI", 14f, FontStyle.Bold),
+                Text = Localization.Get("AppTitle"),
+                Font = new Font("Segoe UI", 13.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(212, 175, 55),
                 AutoSize = true,
                 UseMnemonic = false,
                 Location = new Point(16, 10)
             };
 
-            Label lblVersion = new Label
+            lblVersion = new Label
             {
-                Text = "v1.3",
+                Text = "v1.4",
                 Font = new Font("Segoe UI", 7.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(120, 125, 145),
                 BackColor = Color.FromArgb(32, 36, 48),
                 AutoSize = false,
                 Size = new Size(36, 16),
                 TextAlign = ContentAlignment.MiddleCenter,
-                Location = new Point(315, 13)
+                Location = new Point(485, 14)
             };
 
-            Label lblSub = new Label
+
+            lblHeaderSub = new Label
             {
-                Text = "Build & switch relic loadouts for your vessel  •  F10 to toggle overlay in-game",
+                Text = Localization.Get("AppSubtitle"),
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
                 ForeColor = Color.FromArgb(145, 150, 170),
                 AutoSize = true,
                 Location = new Point(18, 38)
             };
 
+            cmbLanguage = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Location = new Point(595, 18),
+                Width = 135,
+                Height = 28,
+                BackColor = Color.FromArgb(32, 36, 48),
+                ForeColor = Color.FromArgb(220, 225, 240),
+                Font = new Font("Segoe UI", 9f)
+            };
+            cmbLanguage.Items.Add("🌐 English");
+            cmbLanguage.Items.Add("🌐 Français");
+            cmbLanguage.Items.Add("🌐 العربية");
+            cmbLanguage.SelectedIndex = 0;
+            cmbLanguage.SelectedIndexChanged += (s, e) =>
+            {
+                if (cmbLanguage.SelectedIndex == 1) Localization.SetLanguage(Localization.Language.French);
+                else if (cmbLanguage.SelectedIndex == 2) Localization.SetLanguage(Localization.Language.Arabic);
+                else Localization.SetLanguage(Localization.Language.English);
+                UpdateUILanguage();
+            };
+
             btnQuickOverlay = new Button
             {
-                Text = "🎮 In-Game Overlay (F10)",
-                Location = new Point(720, 14),
-                Width = 205,
+                Text = Localization.Get("QuickOverlay"),
+                Location = new Point(745, 14),
+                Width = 180,
                 Height = 38,
                 BackColor = Color.FromArgb(40, 58, 85),
                 ForeColor = Color.FromArgb(190, 225, 255),
@@ -1085,10 +1153,12 @@ namespace NightreignRelicExtractor
             btnQuickOverlay.FlatAppearance.BorderColor = Color.FromArgb(70, 110, 165);
             btnQuickOverlay.Click += (s, e) => ToggleOverlay();
 
-            pnlHeader.Controls.Add(lblTitle);
+            pnlHeader.Controls.Add(lblHeaderTitle);
             pnlHeader.Controls.Add(lblVersion);
-            pnlHeader.Controls.Add(lblSub);
+            pnlHeader.Controls.Add(lblHeaderSub);
+            pnlHeader.Controls.Add(cmbLanguage);
             pnlHeader.Controls.Add(btnQuickOverlay);
+
 
             // Tab Navigation Bar
             Panel pnlNav = new Panel
@@ -1183,9 +1253,9 @@ namespace NightreignRelicExtractor
                 Padding = new Padding(18, 6, 18, 6)
             };
 
-            Label lblFilePrompt = new Label
+            lblFilePrompt = new Label
             {
-                Text = "Nightreign Save File (NR0000.co2):",
+                Text = Localization.Get("SaveFilePrompt"),
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(200, 205, 220),
                 AutoSize = true,
@@ -1207,7 +1277,7 @@ namespace NightreignRelicExtractor
             // Warning label shown when a non-Steam-ID path is detected
             Label lblPathWarning = new Label
             {
-                Text = "⚠️  Wrong file? The game only reads from the Steam-ID subfolder (e.g. ...\\76561199865253630\\NR0000.co2). Click Auto-Detect.",
+                Text = Localization.Get("WrongPathWarning"),
                 Font = new Font("Segoe UI", 8f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(255, 195, 80),
                 AutoSize = true,
@@ -1238,11 +1308,9 @@ namespace NightreignRelicExtractor
             pnlFileBar.Controls.Add(txtFilePath);
             pnlFileBar.Controls.Add(lblPathWarning);
 
-
-
             btnBrowse = new Button
             {
-                Text = "Browse...",
+                Text = Localization.Get("Browse"),
                 Location = new Point(695, 25),
                 Width = 105,
                 Height = 27,
@@ -1258,7 +1326,7 @@ namespace NightreignRelicExtractor
 
             btnAutoDetect = new Button
             {
-                Text = "Auto-Detect",
+                Text = Localization.Get("AutoDetect"),
                 Location = new Point(810, 25),
                 Width = 115,
                 Height = 27,
@@ -1268,6 +1336,7 @@ namespace NightreignRelicExtractor
                 UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
+
             btnAutoDetect.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 90);
             btnAutoDetect.Click += (s, e) => { TryAutoDetectFile(true); AutoSeedDefaultPresets(); RefreshMainPresets(); LoadSelectedVesselData(); };
             pnlFileBar.Controls.Add(btnAutoDetect);
@@ -1594,25 +1663,26 @@ namespace NightreignRelicExtractor
                 BackColor = Color.FromArgb(20, 22, 28)
             };
 
-            Label lblNormalSec = new Label
+            lblBuilderNormalHeader = new Label
             {
-                Text = "NORMAL RELIC SLOTS (Slots 1 - 3)",
+                Text = Localization.Get("NormalSlotsTitle"),
                 Location = new Point(0, 2),
                 AutoSize = true,
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(220, 185, 65)
             };
-            pnlBuilderSlots.Controls.Add(lblNormalSec);
+            pnlBuilderSlots.Controls.Add(lblBuilderNormalHeader);
 
-            Label lblDeepSec = new Label
+            lblBuilderDeepHeader = new Label
             {
-                Text = "DEEP RELIC SLOTS (Slots 4 - 6)",
+                Text = Localization.Get("DeepSlotsTitle"),
                 Location = new Point(0, 172),
                 AutoSize = true,
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(150, 180, 255)
             };
-            pnlBuilderSlots.Controls.Add(lblDeepSec);
+            pnlBuilderSlots.Controls.Add(lblBuilderDeepHeader);
+
 
             int cardWidth = 294;
             int cardHeight = 148;
@@ -1740,21 +1810,21 @@ namespace NightreignRelicExtractor
             // Bottom Action Bar
             Panel pnlBottomBar = new Panel
             {
-                Location = new Point(14, 430),
+                Location = new Point(14, 426),
                 Width = 906,
-                Height = 75,
+                Height = 82,
                 BackColor = Color.FromArgb(20, 22, 28)
             };
 
             btnBuilderSave = new Button
             {
-                Text = "💾 Equip & Save to Save File",
-                Location = new Point(0, 4),
-                Width = 310,
-                Height = 36,
+                Text = Localization.Get("EquipAndSave"),
+                Location = new Point(0, 2),
+                Width = 260,
+                Height = 34,
                 BackColor = Color.FromArgb(200, 160, 45),
                 ForeColor = Color.FromArgb(15, 15, 20),
-                Font = new Font("Segoe UI", 10f, FontStyle.Bold),
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
                 UseMnemonic = false,
                 Cursor = Cursors.Hand
@@ -1765,13 +1835,13 @@ namespace NightreignRelicExtractor
 
             btnBuilderPreset = new Button
             {
-                Text = "⭐ Save as Preset",
-                Location = new Point(325, 4),
-                Width = 235,
-                Height = 36,
+                Text = Localization.Get("SaveAsPreset"),
+                Location = new Point(270, 2),
+                Width = 180,
+                Height = 34,
                 BackColor = Color.FromArgb(35, 55, 80),
                 ForeColor = Color.FromArgb(180, 220, 255),
-                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
                 UseMnemonic = false,
                 Cursor = Cursors.Hand
@@ -1780,12 +1850,29 @@ namespace NightreignRelicExtractor
             btnBuilderPreset.Click += BtnBuilderPreset_Click;
             pnlBottomBar.Controls.Add(btnBuilderPreset);
 
+            btnBuilderBrowsePresets = new Button
+            {
+                Text = Localization.Get("BrowsePresets"),
+                Location = new Point(460, 2),
+                Width = 180,
+                Height = 34,
+                BackColor = Color.FromArgb(45, 50, 68),
+                ForeColor = Color.FromArgb(225, 230, 245),
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                UseMnemonic = false,
+                Cursor = Cursors.Hand
+            };
+            btnBuilderBrowsePresets.FlatAppearance.BorderColor = Color.FromArgb(75, 85, 110);
+            btnBuilderBrowsePresets.Click += BtnBuilderBrowsePresets_Click;
+            pnlBottomBar.Controls.Add(btnBuilderBrowsePresets);
+
             btnBuilderClearAll = new Button
             {
-                Text = "🧹 Clear All 6 Slots",
-                Location = new Point(575, 4),
-                Width = 331,
-                Height = 36,
+                Text = Localization.Get("ClearAllSlots"),
+                Location = new Point(650, 2),
+                Width = 256,
+                Height = 34,
                 BackColor = Color.FromArgb(42, 45, 55),
                 ForeColor = Color.FromArgb(220, 225, 235),
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
@@ -1797,18 +1884,54 @@ namespace NightreignRelicExtractor
             btnBuilderClearAll.Click += BtnBuilderClearAll_Click;
             pnlBottomBar.Controls.Add(btnBuilderClearAll);
 
+            // Row 2: AI Tools & Safety Notice
+            btnBuilderCopyAIPrompt = new Button
+            {
+                Text = Localization.Get("CopyAIPrompt"),
+                Location = new Point(0, 42),
+                Width = 220,
+                Height = 32,
+                BackColor = Color.FromArgb(30, 60, 85),
+                ForeColor = Color.FromArgb(190, 230, 255),
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                UseMnemonic = false,
+                Cursor = Cursors.Hand
+            };
+            btnBuilderCopyAIPrompt.FlatAppearance.BorderColor = Color.FromArgb(60, 110, 155);
+            btnBuilderCopyAIPrompt.Click += BtnBuilderCopyAIPrompt_Click;
+            pnlBottomBar.Controls.Add(btnBuilderCopyAIPrompt);
+
+            btnBuilderImportAI = new Button
+            {
+                Text = Localization.Get("ImportAIBuild"),
+                Location = new Point(230, 42),
+                Width = 220,
+                Height = 32,
+                BackColor = Color.FromArgb(40, 55, 45),
+                ForeColor = Color.FromArgb(175, 240, 195),
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                UseMnemonic = false,
+                Cursor = Cursors.Hand
+            };
+            btnBuilderImportAI.FlatAppearance.BorderColor = Color.FromArgb(70, 120, 90);
+            btnBuilderImportAI.Click += BtnBuilderImportAI_Click;
+            pnlBottomBar.Controls.Add(btnBuilderImportAI);
+
             lblBuilderSafety = new Label
             {
-                Text = "🔒 Automatic backup (.bak & timestamped) is always created before every save modification.",
-                Location = new Point(2, 46),
+                Text = Localization.Get("BackupNotice"),
+                Location = new Point(460, 50),
                 AutoSize = true,
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Italic),
+                Font = new Font("Segoe UI", 8f, FontStyle.Italic),
                 ForeColor = Color.FromArgb(120, 210, 140)
             };
             pnlBottomBar.Controls.Add(lblBuilderSafety);
 
             pnlBuilderView.Controls.Add(pnlBottomBar);
         }
+
 
         private Color GetSlotBorderColor(int slotIndex)
         {
@@ -2182,6 +2305,254 @@ namespace NightreignRelicExtractor
             }
         }
 
+        private void BtnBuilderBrowsePresets_Click(object sender, EventArgs e)
+        {
+            string path = txtFilePath != null ? txtFilePath.Text.Trim('"', '\'') : "";
+            using (var browser = new PresetBrowserDialog(path))
+            {
+                if (browser.ShowDialog(this) == DialogResult.OK && browser.SelectedPresetToLoad != null)
+                {
+                    LoadPresetIntoBuilder(browser.SelectedPresetToLoad);
+                }
+            }
+        }
+
+        private void BtnBuilderCopyAIPrompt_Click(object sender, EventArgs e)
+        {
+            if (currentVesselDetail == null) return;
+
+            var colors = new List<string>();
+            for (int s = 0; s < 3; s++)
+            {
+                colors.Add(currentVesselDetail.Slots[s].RequiredColor ?? "Any");
+            }
+
+            var relics = GetOrExtractPlayerRelics();
+
+            string prompt = AIPromptBuilder.BuildPrompt(
+                currentVesselDetail.CharacterName,
+                currentVesselDetail.VesselName,
+                colors,
+                relics);
+
+
+            Clipboard.SetText(prompt);
+            MessageBox.Show(this,
+                "ChatGPT AI Build Prompt copied to clipboard!\n\n" +
+                "1. Open ChatGPT, Claude, or Gemini.\n" +
+                "2. Paste (Ctrl+V) the prompt.\n" +
+                "3. Copy the AI's JSON response.\n" +
+                "4. In this app, click '📥 Import AI Build' to load the build instantly!",
+                "Prompt Copied Successfully",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
+        private void BtnBuilderImportAI_Click(object sender, EventArgs e)
+        {
+            using (var dlg = new Form())
+            {
+                dlg.Text = "Import AI Build from ChatGPT (Paste JSON)";
+                dlg.Size = new Size(620, 440);
+                dlg.StartPosition = FormStartPosition.CenterParent;
+                dlg.BackColor = Color.FromArgb(22, 25, 33);
+                dlg.ForeColor = Color.White;
+                dlg.Font = new Font("Segoe UI", 9.5f);
+
+                Label lblPrompt = new Label
+                {
+                    Text = "Paste the JSON response from ChatGPT below:",
+                    Location = new Point(16, 12),
+                    AutoSize = true,
+                    ForeColor = Color.FromArgb(200, 210, 230)
+                };
+                dlg.Controls.Add(lblPrompt);
+
+                TextBox txtJson = new TextBox
+                {
+                    Location = new Point(16, 36),
+                    Size = new Size(570, 300),
+                    Multiline = true,
+                    ScrollBars = ScrollBars.Vertical,
+                    BackColor = Color.FromArgb(30, 34, 46),
+                    ForeColor = Color.White,
+                    Font = new Font("Consolas", 9.5f)
+                };
+                dlg.Controls.Add(txtJson);
+
+                Button btnLoadToBuilder = new Button
+                {
+                    Text = "⚱️ Load into Builder",
+                    Location = new Point(270, 350),
+                    Width = 150,
+                    Height = 34,
+                    BackColor = Color.FromArgb(30, 60, 95),
+                    ForeColor = Color.FromArgb(190, 225, 255),
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat,
+                    DialogResult = DialogResult.OK
+                };
+                dlg.Controls.Add(btnLoadToBuilder);
+
+                Button btnSaveAsPreset = new Button
+                {
+                    Text = "⭐ Save as Preset",
+                    Location = new Point(430, 350),
+                    Width = 156,
+                    Height = 34,
+                    BackColor = Color.FromArgb(190, 150, 40),
+                    ForeColor = Color.Black,
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat,
+                    DialogResult = DialogResult.Yes
+                };
+                dlg.Controls.Add(btnSaveAsPreset);
+
+                var res = dlg.ShowDialog(this);
+                if (res == DialogResult.OK || res == DialogResult.Yes)
+                {
+                    string err;
+                    var presets = AIPromptBuilder.ParseAIResponse(txtJson.Text, out err);
+                    if (presets == null || presets.Count == 0)
+                    {
+                        MessageBox.Show(this, "Could not parse JSON build: " + err, "Import Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+
+                    var chosen = presets[0];
+                    if (res == DialogResult.Yes)
+                    {
+                        foreach (var p in presets) PresetManager.AddOrUpdatePreset(p);
+                        RefreshMainPresets();
+                        MessageBox.Show(this, string.Format("Saved {0} AI build{1} to Presets!", presets.Count, presets.Count == 1 ? "" : "s"), "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+
+                    LoadPresetIntoBuilder(chosen);
+                }
+            }
+        }
+
+        private void LoadPresetIntoBuilder(LoadoutPreset preset)
+        {
+            if (preset == null) return;
+
+            // 1. Match character
+            int cIdx = SaveRelicWriter.GetCharacterIndex(preset.CharacterName);
+            if (cIdx >= 0 && cmbBuilderChar != null && cmbBuilderChar.Items.Count > cIdx)
+            {
+                cmbBuilderChar.SelectedIndex = cIdx;
+            }
+
+            // 2. Match vessel
+            if (!string.IsNullOrEmpty(preset.VesselName) && cmbBuilderVessel != null)
+            {
+                for (int i = 0; i < cmbBuilderVessel.Items.Count; i++)
+                {
+                    if (string.Equals(cmbBuilderVessel.Items[i].ToString(), preset.VesselName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        cmbBuilderVessel.SelectedIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            if (currentVesselDetail == null) return;
+
+            var inventory = GetOrExtractPlayerRelics();
+
+            // 3. Populate slots
+            for (int s = 0; s < 6; s++)
+            {
+                uint rid = (preset.RelicIds != null && s < preset.RelicIds.Count) ? preset.RelicIds[s] : 0;
+                var slot = currentVesselDetail.Slots[s];
+                slot.RelicId = rid;
+                slot.EffectDescriptions.Clear();
+                slot.EffectIds.Clear();
+
+                if (rid != 0)
+                {
+                    Program.RelicEntry rEntry = null;
+                    if (inventory != null)
+                        rEntry = inventory.Find(r => r.RelicId == rid);
+
+                    if (rEntry != null && rEntry.Item != null)
+                    {
+                        slot.RelicName = rEntry.Item.NameEn;
+                        slot.RelicColor = rEntry.Item.Color;
+                        slot.RelicType = rEntry.Item.Type;
+                        if (rEntry.EffectIds != null)
+                        {
+                            foreach (var eid in rEntry.EffectIds)
+                            {
+                                slot.EffectIds.Add(eid);
+                                slot.EffectDescriptions.Add(Program.GetFullEffectDisplay(eid));
+                            }
+                        }
+                    }
+                    else
+                    {
+                        slot.RelicName = (preset.RelicNames != null && s < preset.RelicNames.Count) ? preset.RelicNames[s] : string.Format("Relic 0x{0:X8}", rid);
+                        slot.RelicColor = (preset.RelicColors != null && s < preset.RelicColors.Count) ? preset.RelicColors[s] : "Unknown";
+                        slot.RelicType = "";
+                    }
+                }
+                else
+                {
+                    slot.RelicName = Localization.Get("EmptySlot");
+                    slot.RelicColor = "None";
+                    slot.RelicType = "";
+                }
+
+                UpdateSlotCardUI(s);
+            }
+
+            ShowTab(1); // Switch to Vessel Builder tab
+        }
+
+
+        private void UpdateUILanguage()
+        {
+            if (lblHeaderTitle != null) lblHeaderTitle.Text = Localization.Get("AppTitle");
+            if (lblVersion != null && lblHeaderTitle != null) lblVersion.Location = new Point(lblHeaderTitle.Right + 8, 14);
+            if (lblHeaderSub != null) lblHeaderSub.Text = Localization.Get("AppSubtitle");
+
+            if (btnQuickOverlay != null) btnQuickOverlay.Text = Localization.Get("QuickOverlay");
+
+            if (btnNavExtract != null) btnNavExtract.Text = Localization.Get("TabExtract");
+            if (btnNavBuilder != null) btnNavBuilder.Text = Localization.Get("TabBuilder");
+            if (btnNavOverlay != null) btnNavOverlay.Text = Localization.Get("TabOverlay");
+
+            if (lblFilePrompt != null) lblFilePrompt.Text = Localization.Get("SaveFilePrompt");
+            if (btnBrowse != null) btnBrowse.Text = Localization.Get("Browse");
+            if (btnAutoDetect != null) btnAutoDetect.Text = Localization.Get("AutoDetect");
+
+            if (btnBuilderSave != null) btnBuilderSave.Text = Localization.Get("EquipAndSave");
+            if (btnBuilderPreset != null) btnBuilderPreset.Text = Localization.Get("SaveAsPreset");
+            if (btnBuilderBrowsePresets != null) btnBuilderBrowsePresets.Text = Localization.Get("BrowsePresets");
+            if (btnBuilderCopyAIPrompt != null) btnBuilderCopyAIPrompt.Text = Localization.Get("CopyAIPrompt");
+            if (btnBuilderImportAI != null) btnBuilderImportAI.Text = Localization.Get("ImportAIBuild");
+            if (btnBuilderClearAll != null) btnBuilderClearAll.Text = Localization.Get("ClearAllSlots");
+            if (lblBuilderSafety != null) lblBuilderSafety.Text = Localization.Get("BackupNotice");
+            if (lblBuilderNormalHeader != null) lblBuilderNormalHeader.Text = Localization.Get("NormalSlotsTitle");
+            if (lblBuilderDeepHeader != null) lblBuilderDeepHeader.Text = Localization.Get("DeepSlotsTitle");
+
+
+            if (btnSlotChanges != null)
+            {
+                foreach (var b in btnSlotChanges) if (b != null) b.Text = Localization.Get("Change");
+            }
+            if (btnSlotClears != null)
+            {
+                foreach (var b in btnSlotClears) if (b != null) b.Text = Localization.Get("Clear");
+            }
+
+            if (overlayForm != null && !overlayForm.IsDisposed)
+            {
+                overlayForm.UpdateLanguage();
+            }
+        }
+
+
         private void InitializeOverlayView()
         {
             pnlOverlayView = new Panel
@@ -2274,9 +2645,9 @@ namespace NightreignRelicExtractor
 
             btnMainSnapshot = new Button
             {
-                Text = "💾 Snapshot Current Relics",
-                Location = new Point(365, 4),
-                Width = 220,
+                Text = Localization.Get("SnapshotCurrent"),
+                Location = new Point(350, 4),
+                Width = 195,
                 Height = 28,
                 BackColor = Color.FromArgb(35, 55, 80),
                 ForeColor = Color.FromArgb(180, 220, 255),
@@ -2289,11 +2660,28 @@ namespace NightreignRelicExtractor
             btnMainSnapshot.Click += BtnMainSnapshot_Click;
             pnlBar.Controls.Add(btnMainSnapshot);
 
+            Button btnMainBrowse = new Button
+            {
+                Text = Localization.Get("BrowsePresets"),
+                Location = new Point(555, 4),
+                Width = 155,
+                Height = 28,
+                BackColor = Color.FromArgb(45, 50, 68),
+                ForeColor = Color.FromArgb(225, 230, 245),
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                UseMnemonic = false,
+                Cursor = Cursors.Hand
+            };
+            btnMainBrowse.FlatAppearance.BorderColor = Color.FromArgb(75, 85, 110);
+            btnMainBrowse.Click += BtnBuilderBrowsePresets_Click;
+            pnlBar.Controls.Add(btnMainBrowse);
+
             btnMainOpenOverlay = new Button
             {
                 Text = "🎮 Open Overlay (F10)",
-                Location = new Point(600, 4),
-                Width = 190,
+                Location = new Point(720, 4),
+                Width = 175,
                 Height = 28,
                 BackColor = Color.FromArgb(200, 160, 45),
                 ForeColor = Color.FromArgb(15, 15, 20),
@@ -2302,6 +2690,7 @@ namespace NightreignRelicExtractor
                 UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
+
             btnMainOpenOverlay.FlatAppearance.BorderColor = Color.FromArgb(235, 195, 80);
             btnMainOpenOverlay.Click += (s, e) => ToggleOverlay();
             pnlBar.Controls.Add(btnMainOpenOverlay);

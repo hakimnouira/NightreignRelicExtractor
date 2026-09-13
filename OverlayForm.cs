@@ -418,7 +418,7 @@ namespace NightreignRelicExtractor
             // Apply Button
             Button btnApply = new Button
             {
-                Text = "⚡ Apply",
+                Text = Localization.Get("Apply"),
                 Location = new Point(415, 24),
                 Width = 100,
                 Height = 36,
@@ -432,6 +432,7 @@ namespace NightreignRelicExtractor
             btnApply.FlatAppearance.BorderColor = Color.FromArgb(235, 195, 80);
             btnApply.Click += (s, e) => ApplyPresetToSave(preset);
             card.Controls.Add(btnApply);
+
 
             return card;
         }
@@ -514,5 +515,13 @@ namespace NightreignRelicExtractor
                 }
             }
         }
+
+        public void UpdateLanguage()
+        {
+            if (btnSnapshot != null) btnSnapshot.Text = Localization.Get("SnapshotCurrent");
+            if (lblAlertSub != null) lblAlertSub.Text = Localization.Get("QuitMenuAlert");
+            RefreshPresets();
+        }
     }
 }
+
