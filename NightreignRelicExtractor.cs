@@ -1048,13 +1048,25 @@ namespace NightreignRelicExtractor
                 Location = new Point(16, 10)
             };
 
+            Label lblVersion = new Label
+            {
+                Text = "v1.3",
+                Font = new Font("Segoe UI", 7.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(120, 125, 145),
+                BackColor = Color.FromArgb(32, 36, 48),
+                AutoSize = false,
+                Size = new Size(36, 16),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Location = new Point(315, 13)
+            };
+
             Label lblSub = new Label
             {
-                Text = "Extract relics, build vessel loadouts, and hotkey switch builds in-game (F10 Overlay)",
+                Text = "Build & switch relic loadouts for your vessel  •  F10 to toggle overlay in-game",
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(160, 165, 180),
+                ForeColor = Color.FromArgb(145, 150, 170),
                 AutoSize = true,
-                Location = new Point(18, 36)
+                Location = new Point(18, 38)
             };
 
             btnQuickOverlay = new Button
@@ -1074,6 +1086,7 @@ namespace NightreignRelicExtractor
             btnQuickOverlay.Click += (s, e) => ToggleOverlay();
 
             pnlHeader.Controls.Add(lblTitle);
+            pnlHeader.Controls.Add(lblVersion);
             pnlHeader.Controls.Add(lblSub);
             pnlHeader.Controls.Add(btnQuickOverlay);
 
@@ -1100,6 +1113,14 @@ namespace NightreignRelicExtractor
             };
             btnNavExtract.FlatAppearance.BorderSize = 0;
             btnNavExtract.Click += (s, e) => ShowTab(0);
+            btnNavExtract.Paint += (s, e) =>
+            {
+                if (btnNavExtract.Tag as string == "active")
+                {
+                    using (var pen = new Pen(Color.FromArgb(212, 175, 55), 3))
+                        e.Graphics.DrawLine(pen, 0, btnNavExtract.Height - 2, btnNavExtract.Width, btnNavExtract.Height - 2);
+                }
+            };
 
             btnNavBuilder = new Button
             {
@@ -1116,6 +1137,14 @@ namespace NightreignRelicExtractor
             };
             btnNavBuilder.FlatAppearance.BorderSize = 0;
             btnNavBuilder.Click += (s, e) => ShowTab(1);
+            btnNavBuilder.Paint += (s, e) =>
+            {
+                if (btnNavBuilder.Tag as string == "active")
+                {
+                    using (var pen = new Pen(Color.FromArgb(212, 175, 55), 3))
+                        e.Graphics.DrawLine(pen, 0, btnNavBuilder.Height - 2, btnNavBuilder.Width, btnNavBuilder.Height - 2);
+                }
+            };
 
             btnNavOverlay = new Button
             {
@@ -1132,6 +1161,14 @@ namespace NightreignRelicExtractor
             };
             btnNavOverlay.FlatAppearance.BorderSize = 0;
             btnNavOverlay.Click += (s, e) => ShowTab(2);
+            btnNavOverlay.Paint += (s, e) =>
+            {
+                if (btnNavOverlay.Tag as string == "active")
+                {
+                    using (var pen = new Pen(Color.FromArgb(212, 175, 55), 3))
+                        e.Graphics.DrawLine(pen, 0, btnNavOverlay.Height - 2, btnNavOverlay.Width, btnNavOverlay.Height - 2);
+                }
+            };
 
             pnlNav.Controls.Add(btnNavExtract);
             pnlNav.Controls.Add(btnNavBuilder);
@@ -1226,14 +1263,21 @@ namespace NightreignRelicExtractor
 
         public void ShowTab(int tabIndex)
         {
-            btnNavExtract.BackColor = (tabIndex == 0) ? Color.FromArgb(34, 38, 50) : Color.FromArgb(24, 27, 35);
-            btnNavExtract.ForeColor = (tabIndex == 0) ? Color.FromArgb(220, 185, 65) : Color.FromArgb(170, 175, 190);
+            // Active tab: brighter gold text + slightly lighter background
+            // Inactive tabs: muted slate text + dark background
+            Action<Button, bool> setTabStyle = (btn, active) =>
+            {
+                btn.BackColor = active ? Color.FromArgb(36, 40, 52) : Color.FromArgb(24, 27, 35);
+                btn.ForeColor = active ? Color.FromArgb(220, 185, 65) : Color.FromArgb(155, 160, 175);
+                // Use the tag to indicate active for custom paint underline
+                btn.Tag = active ? "active" : "inactive";
+                btn.FlatAppearance.BorderSize = active ? 0 : 0;
+                btn.Invalidate(); // trigger repaint for underline
+            };
 
-            btnNavBuilder.BackColor = (tabIndex == 1) ? Color.FromArgb(34, 38, 50) : Color.FromArgb(24, 27, 35);
-            btnNavBuilder.ForeColor = (tabIndex == 1) ? Color.FromArgb(220, 185, 65) : Color.FromArgb(170, 175, 190);
-
-            btnNavOverlay.BackColor = (tabIndex == 2) ? Color.FromArgb(34, 38, 50) : Color.FromArgb(24, 27, 35);
-            btnNavOverlay.ForeColor = (tabIndex == 2) ? Color.FromArgb(220, 185, 65) : Color.FromArgb(170, 175, 190);
+            setTabStyle(btnNavExtract, tabIndex == 0);
+            setTabStyle(btnNavBuilder, tabIndex == 1);
+            setTabStyle(btnNavOverlay, tabIndex == 2);
 
             pnlExtractView.Visible = (tabIndex == 0);
             pnlBuilderView.Visible = (tabIndex == 1);
@@ -1254,6 +1298,8 @@ namespace NightreignRelicExtractor
                 RefreshMainPresets();
             }
         }
+
+
 
         public void ShowTabPublic(bool showExtract)
         {
@@ -2574,6 +2620,7 @@ namespace NightreignRelicExtractor
 
         private void TryAutoDetectFile(bool userClicked = false)
         {
+            // 1. Check current working directory first (drag-drop or portable usage)
             if (File.Exists("NR0000.co2"))
             {
                 txtFilePath.Text = Path.GetFullPath("NR0000.co2");
@@ -2581,35 +2628,121 @@ namespace NightreignRelicExtractor
                 return;
             }
 
+            // 2. Search %APPDATA%\Nightreign recursively for both .co2 and .sl2
             string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             string nrRoaming = Path.Combine(appData, "Nightreign");
+
+            var candidates = new List<string>();
             if (Directory.Exists(nrRoaming))
             {
-                var files = Directory.GetFiles(nrRoaming, "NR0000.co2", SearchOption.AllDirectories);
-                if (files.Length > 0)
-                {
-                    txtFilePath.Text = Path.GetFullPath(files[0]);
-                    if (userClicked) MessageBox.Show(this, "Found Nightreign save file:\n" + files[0], "Auto-Detect", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
-                }
+                candidates.AddRange(Directory.GetFiles(nrRoaming, "NR0000.co2", SearchOption.AllDirectories));
+                candidates.AddRange(Directory.GetFiles(nrRoaming, "NR0000.sl2", SearchOption.AllDirectories));
             }
 
-            if (Directory.Exists(nrRoaming))
+            if (candidates.Count == 0)
             {
-                var files = Directory.GetFiles(nrRoaming, "NR0000.sl2", SearchOption.AllDirectories);
-                if (files.Length > 0)
-                {
-                    txtFilePath.Text = Path.GetFullPath(files[0]);
-                    if (userClicked) MessageBox.Show(this, "Found Nightreign save file:\n" + files[0], "Auto-Detect", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
-                }
+                if (userClicked)
+                    MessageBox.Show(this,
+                        "Could not automatically locate NR0000.co2.\n\n" +
+                        "Expected location:\n" + Path.Combine(nrRoaming, "<SteamID64>", "NR0000.co2") + "\n\n" +
+                        "Please use 'Browse...' to select your file manually.",
+                        "Auto-Detect", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
             }
 
-            if (userClicked)
+            // Sort: paths with a numeric Steam-ID folder component come first (more likely the real profile)
+            candidates.Sort((a, b) =>
             {
-                MessageBox.Show(this, "Could not automatically locate NR0000.co2 in AppData or current directory.\nPlease use 'Browse...' to select your file.", "Auto-Detect", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                bool aHasSteamId = HasSteamIdComponent(a);
+                bool bHasSteamId = HasSteamIdComponent(b);
+                if (aHasSteamId && !bHasSteamId) return -1;
+                if (!aHasSteamId && bHasSteamId) return 1;
+                return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+            });
+
+            if (candidates.Count == 1)
+            {
+                // Only one found — auto-fill it
+                txtFilePath.Text = candidates[0];
+                if (userClicked)
+                    MessageBox.Show(this, "Found Nightreign save file:\n" + candidates[0], "Auto-Detect", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // Multiple candidates — show picker dialog
+            using (var picker = new Form())
+            {
+                picker.Width = 680;
+                picker.Height = 280;
+                picker.FormBorderStyle = FormBorderStyle.FixedDialog;
+                picker.Text = "Multiple Save Files Found";
+                picker.StartPosition = FormStartPosition.CenterParent;
+                picker.BackColor = Color.FromArgb(24, 26, 34);
+                picker.ForeColor = Color.White;
+                picker.MaximizeBox = false;
+                picker.MinimizeBox = false;
+
+                var lblInfo = new Label
+                {
+                    Text = "Multiple NR0000 save files were found. Select the one for your active Steam account:",
+                    Font = new Font("Segoe UI", 9.5f, FontStyle.Regular),
+                    ForeColor = Color.FromArgb(200, 205, 220),
+                    Location = new Point(16, 14),
+                    Size = new Size(640, 20)
+                };
+                picker.Controls.Add(lblInfo);
+
+                var lst = new ListBox
+                {
+                    Location = new Point(16, 40),
+                    Size = new Size(640, 150),
+                    BackColor = Color.FromArgb(32, 36, 48),
+                    ForeColor = Color.White,
+                    Font = new Font("Consolas", 9.5f),
+                    BorderStyle = BorderStyle.FixedSingle
+                };
+                foreach (var c in candidates) lst.Items.Add(c);
+                lst.SelectedIndex = 0; // pre-select Steam-ID one (sorted first)
+                picker.Controls.Add(lst);
+
+                var btnSelect = new Button
+                {
+                    Text = "Use Selected",
+                    Location = new Point(480, 200),
+                    Width = 176,
+                    Height = 32,
+                    BackColor = Color.FromArgb(200, 160, 45),
+                    ForeColor = Color.Black,
+                    Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat,
+                    DialogResult = DialogResult.OK
+                };
+                btnSelect.FlatAppearance.BorderColor = Color.FromArgb(235, 195, 80);
+                picker.Controls.Add(btnSelect);
+                picker.AcceptButton = btnSelect;
+
+                if (picker.ShowDialog(this) == DialogResult.OK && lst.SelectedItem != null)
+                {
+                    txtFilePath.Text = lst.SelectedItem.ToString();
+                }
             }
         }
+
+        // Returns true if the path contains a numeric directory component (Steam ID format: 17-digit number)
+        private static bool HasSteamIdComponent(string path)
+        {
+            var parts = path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            foreach (var part in parts)
+            {
+                if (part.Length >= 15 && part.Length <= 20)
+                {
+                    long dummy;
+                    if (long.TryParse(part, out dummy)) return true;
+                }
+            }
+            return false;
+        }
+
 
         private void BtnExtract_Click(object sender, EventArgs e)
         {

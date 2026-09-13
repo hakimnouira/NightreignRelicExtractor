@@ -17,6 +17,26 @@ namespace NightreignRelicExtractor
         [DllImport("user32.dll")]
         public static extern int SendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
 
+        // Win32: Force window above exclusive fullscreen layers
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
+            int X, int Y, int cx, int cy, uint uFlags);
+
+        [DllImport("user32.dll")]
+        static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+        [DllImport("user32.dll")]
+        static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+        static readonly IntPtr HWND_TOPMOST   = new IntPtr(-1);
+        const uint SWP_NOMOVE                  = 0x0002;
+        const uint SWP_NOSIZE                  = 0x0001;
+        const uint SWP_SHOWWINDOW              = 0x0040;
+        const int  GWL_EXSTYLE                 = -20;
+        const int  WS_EX_TOPMOST_FLAG          = 0x00000008;
+        const int  WS_EX_LAYERED               = 0x00080000;
+        const int  WS_EX_NOACTIVATE            = 0x08000000;
+
         const int WM_NCLBUTTONDOWN = 0xA1;
         const int HT_CAPTION = 0x2;
 
@@ -42,10 +62,32 @@ namespace NightreignRelicExtractor
             RefreshPresets();
         }
 
+        // Called once when the OS window handle is created — apply TOPMOST at the Win32 level
+        // so the overlay punches through exclusive fullscreen game windows.
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            ForceTopmost();
+        }
+
+        private void ForceTopmost()
+        {
+            try
+            {
+                // Set WS_EX_TOPMOST | WS_EX_NOACTIVATE extended styles
+                int exStyle = GetWindowLong(this.Handle, GWL_EXSTYLE);
+                SetWindowLong(this.Handle, GWL_EXSTYLE, exStyle | WS_EX_TOPMOST_FLAG | WS_EX_NOACTIVATE);
+                // Place the window above all others including exclusive fullscreen
+                SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            }
+            catch { /* safe to ignore — fallback is TopMost = true which works for borderless */ }
+        }
+
         private void InitializeOverlay()
         {
             this.FormBorderStyle = FormBorderStyle.None;
             this.TopMost = true;
+
             this.ShowInTaskbar = false;
             this.StartPosition = FormStartPosition.CenterScreen;
             this.Size = new Size(580, 560);
@@ -237,8 +279,10 @@ namespace NightreignRelicExtractor
 
             this.Show();
             this.BringToFront();
-            this.Activate();
+            // Re-assert TOPMOST every time we show — needed for exclusive fullscreen
+            ForceTopmost();
         }
+
 
         public void ToggleOverlay(string currentSavePath = null)
         {
