@@ -104,37 +104,6 @@ namespace NightreignRelicExtractor
             { "約0.85倍", "~0.85x" }
         };
 
-        public static readonly string AI_BUILD_PROMPT =
-@"I have attached my extracted Elden Ring Nightreign relic inventory (relics.xlsx / relics.csv).
-
-Please act as an expert Elden Ring Nightreign build strategist. Analyze my exact relic inventory and create the best possible builds for my characters.
-
-### Game & Relic Rules:
-1. **Relic Capacity**: Each vessel equips up to 6 relics total:
-   - 3 Standard Relic slots (fit normal Relics and UniqueRelics).
-   - 3 Deep Relic slots (fit DeepRelics).
-2. **Slot Color Constraints**: Each vessel slot has a strict color requirement (Red, Blue, Yellow, Green). Relics must match their slot's color.
-3. **Character-Specific Perks**: Effects starting with character names (e.g. Wylder, Guardian, Duchess, Raider, Recluse, Scholar, Revenant, Executor) only activate when playing that specific character.
-4. **Stacking**: Stackable stat buffs and resistances combine, but effects marked 'Only 1 active (Left priority)' do not stack with duplicates.
-5. **No Hallucinated Relics**: Only recommend relics that actually exist in my attached inventory (match by Relic ID and Relic Name).
-
-### What I Want From You:
-1. **Top Character Builds**: Recommend the optimal 6-relic combination for:
-   - **Wylder** (Physical / Stagger / Skill spam)
-   - **Guardian** (Tank / Guard Counter / HP Regen)
-   - **Duchess** (Critical / Dagger / Sorcery)
-   - **Recluse** (Status effects / Blood loss / High DPS)
-   - Any other character you find strong synergies for in my inventory.
-2. **Build Breakdown For Each**:
-   - Chosen Vessel & Slot Colors
-   - List the 6 specific Relics (with their Relic ID, Name, Color, and active Effects)
-   - Synergy explanation & gameplay strategy
-3. **Inventory Advice**:
-   - Highlight the top 5 strongest 'god-roll' relics in my collection.
-   - Point out any useless duplicates that can safely be recycled or ignored.
-
-Please review the attached spreadsheet and generate my builds!";
-
         public class ItemInfo
         {
             public int Id;
@@ -449,7 +418,7 @@ Please review the attached spreadsheet and generate my builds!";
             };
         }
 
-        private static byte[] DecryptSaveFileReadOnly(string path)
+        public static byte[] DecryptSaveFileReadOnly(string path)
         {
             byte[] raw;
             using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
@@ -924,14 +893,36 @@ Please review the attached spreadsheet and generate my builds!";
         private Button btnOpenCsv;
         private Button btnOpenExcel;
         private Button btnOpenFolder;
-        private Button btnCopyAiPrompt;
+        private Button btnGoToBuilder;
         private Label lblStatus;
 
         private Button btnNavExtract;
+        private Button btnNavBuilder;
         private Button btnNavOverlay;
         private Button btnQuickOverlay;
         private Panel pnlExtractView;
+        private Panel pnlBuilderView;
         private Panel pnlOverlayView;
+
+        // Vessel Builder controls
+        private ComboBox cmbBuilderChar;
+        private ComboBox cmbBuilderVessel;
+        private Label lblBuilderActiveStatus;
+        private CheckBox chkBuilderSetActive;
+        private Button btnBuilderReload;
+        private Panel pnlBuilderSlots;
+        private Button btnBuilderSave;
+        private Button btnBuilderPreset;
+        private Button btnBuilderClearAll;
+        private Label lblBuilderSafety;
+        private VesselDetailInfo currentVesselDetail;
+        private Panel[] slotPanels = new Panel[6];
+        private Label[] lblSlotHeaders = new Label[6];
+        private Label[] lblSlotReqColors = new Label[6];
+        private Label[] lblSlotRelicNames = new Label[6];
+        private Label[] lblSlotRelicEffects = new Label[6];
+        private Button[] btnSlotChanges = new Button[6];
+        private Button[] btnSlotClears = new Button[6];
 
         // Overlay & Presets tab controls
         private ComboBox cmbMainCharFilter;
@@ -951,6 +942,7 @@ Please review the attached spreadsheet and generate my builds!";
             TryAutoDetectFile();
             AutoSeedDefaultPresets();
             RefreshMainPresets();
+            LoadSelectedVesselData();
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -1004,8 +996,8 @@ Please review the attached spreadsheet and generate my builds!";
         private void InitializeComponent()
         {
             this.Text = "Nightreign Relic Extractor & Loadout Switcher";
-            this.Size = new Size(740, 600);
-            this.MinimumSize = new Size(740, 600);
+            this.Size = new Size(800, 690);
+            this.MinimumSize = new Size(800, 690);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = Color.FromArgb(20, 22, 28);
             this.ForeColor = Color.FromArgb(235, 238, 245);
@@ -1030,12 +1022,13 @@ Please review the attached spreadsheet and generate my builds!";
                 Font = new Font("Segoe UI", 14f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(212, 175, 55),
                 AutoSize = true,
+                UseMnemonic = false,
                 Location = new Point(16, 10)
             };
 
             Label lblSub = new Label
             {
-                Text = "Extract relics, manage vessel presets, and hotkey switch builds in-game (F10 Overlay)",
+                Text = "Extract relics, build vessel loadouts, and hotkey switch builds in-game (F10 Overlay)",
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
                 ForeColor = Color.FromArgb(160, 165, 180),
                 AutoSize = true,
@@ -1045,8 +1038,8 @@ Please review the attached spreadsheet and generate my builds!";
             btnQuickOverlay = new Button
             {
                 Text = "🎮 In-Game Overlay (F10)",
-                Location = new Point(515, 14),
-                Width = 195,
+                Location = new Point(545, 14),
+                Width = 205,
                 Height = 38,
                 BackColor = Color.FromArgb(40, 58, 85),
                 ForeColor = Color.FromArgb(190, 225, 255),
@@ -1071,9 +1064,9 @@ Please review the attached spreadsheet and generate my builds!";
 
             btnNavExtract = new Button
             {
-                Text = "📥 Relic Extractor & AI Prompt",
+                Text = "📥 Relic Extractor",
                 Location = new Point(0, 0),
-                Width = 220,
+                Width = 160,
                 Height = 38,
                 BackColor = Color.FromArgb(34, 38, 50),
                 ForeColor = Color.FromArgb(220, 185, 65),
@@ -1082,13 +1075,13 @@ Please review the attached spreadsheet and generate my builds!";
                 Cursor = Cursors.Hand
             };
             btnNavExtract.FlatAppearance.BorderSize = 0;
-            btnNavExtract.Click += (s, e) => ShowTab(true);
+            btnNavExtract.Click += (s, e) => ShowTab(0);
 
-            btnNavOverlay = new Button
+            btnNavBuilder = new Button
             {
-                Text = "⚔️ Loadouts & In-Game Overlay",
-                Location = new Point(220, 0),
-                Width = 230,
+                Text = "⚱️ Vessel Builder",
+                Location = new Point(160, 0),
+                Width = 175,
                 Height = 38,
                 BackColor = Color.FromArgb(24, 27, 35),
                 ForeColor = Color.FromArgb(170, 175, 190),
@@ -1096,10 +1089,27 @@ Please review the attached spreadsheet and generate my builds!";
                 FlatStyle = FlatStyle.Flat,
                 Cursor = Cursors.Hand
             };
+            btnNavBuilder.FlatAppearance.BorderSize = 0;
+            btnNavBuilder.Click += (s, e) => ShowTab(1);
+
+            btnNavOverlay = new Button
+            {
+                Text = "⚔️ Loadouts & Overlay (F10)",
+                Location = new Point(335, 0),
+                Width = 230,
+                Height = 38,
+                BackColor = Color.FromArgb(24, 27, 35),
+                ForeColor = Color.FromArgb(170, 175, 190),
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                UseMnemonic = false,
+                Cursor = Cursors.Hand
+            };
             btnNavOverlay.FlatAppearance.BorderSize = 0;
-            btnNavOverlay.Click += (s, e) => ShowTab(false);
+            btnNavOverlay.Click += (s, e) => ShowTab(2);
 
             pnlNav.Controls.Add(btnNavExtract);
+            pnlNav.Controls.Add(btnNavBuilder);
             pnlNav.Controls.Add(btnNavOverlay);
 
             // Common Save File Selection Bar
@@ -1124,7 +1134,7 @@ Please review the attached spreadsheet and generate my builds!";
             txtFilePath = new TextBox
             {
                 Location = new Point(18, 26),
-                Width = 490,
+                Width = 525,
                 Height = 26,
                 BackColor = Color.FromArgb(32, 36, 46),
                 ForeColor = Color.FromArgb(240, 240, 240),
@@ -1137,13 +1147,14 @@ Please review the attached spreadsheet and generate my builds!";
                 {
                     overlayForm.UpdateSavePath(txtFilePath.Text.Trim('"', '\''));
                 }
+                LoadSelectedVesselData();
             };
             pnlFileBar.Controls.Add(txtFilePath);
 
             btnBrowse = new Button
             {
                 Text = "Browse...",
-                Location = new Point(515, 25),
+                Location = new Point(550, 25),
                 Width = 90,
                 Height = 27,
                 BackColor = Color.FromArgb(42, 47, 60),
@@ -1158,8 +1169,8 @@ Please review the attached spreadsheet and generate my builds!";
             btnAutoDetect = new Button
             {
                 Text = "Auto-Detect",
-                Location = new Point(610, 25),
-                Width = 100,
+                Location = new Point(645, 25),
+                Width = 105,
                 Height = 27,
                 BackColor = Color.FromArgb(42, 47, 60),
                 ForeColor = Color.FromArgb(175, 195, 255),
@@ -1167,46 +1178,59 @@ Please review the attached spreadsheet and generate my builds!";
                 Cursor = Cursors.Hand
             };
             btnAutoDetect.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 90);
-            btnAutoDetect.Click += (s, e) => { TryAutoDetectFile(true); AutoSeedDefaultPresets(); RefreshMainPresets(); };
+            btnAutoDetect.Click += (s, e) => { TryAutoDetectFile(true); AutoSeedDefaultPresets(); RefreshMainPresets(); LoadSelectedVesselData(); };
             pnlFileBar.Controls.Add(btnAutoDetect);
 
             // Create Tab View Containers
             InitializeExtractView();
+            InitializeBuilderView();
             InitializeOverlayView();
 
             this.Controls.Add(pnlExtractView);
+            this.Controls.Add(pnlBuilderView);
             this.Controls.Add(pnlOverlayView);
             this.Controls.Add(pnlNav);
             this.Controls.Add(pnlFileBar);
             this.Controls.Add(pnlHeader);
 
             // Default to Extract view
-            ShowTab(true);
+            ShowTab(0);
         }
 
-        private void ShowTab(bool showExtract)
+        public void ShowTab(int tabIndex)
         {
-            if (showExtract)
+            btnNavExtract.BackColor = (tabIndex == 0) ? Color.FromArgb(34, 38, 50) : Color.FromArgb(24, 27, 35);
+            btnNavExtract.ForeColor = (tabIndex == 0) ? Color.FromArgb(220, 185, 65) : Color.FromArgb(170, 175, 190);
+
+            btnNavBuilder.BackColor = (tabIndex == 1) ? Color.FromArgb(34, 38, 50) : Color.FromArgb(24, 27, 35);
+            btnNavBuilder.ForeColor = (tabIndex == 1) ? Color.FromArgb(220, 185, 65) : Color.FromArgb(170, 175, 190);
+
+            btnNavOverlay.BackColor = (tabIndex == 2) ? Color.FromArgb(34, 38, 50) : Color.FromArgb(24, 27, 35);
+            btnNavOverlay.ForeColor = (tabIndex == 2) ? Color.FromArgb(220, 185, 65) : Color.FromArgb(170, 175, 190);
+
+            pnlExtractView.Visible = (tabIndex == 0);
+            pnlBuilderView.Visible = (tabIndex == 1);
+            pnlOverlayView.Visible = (tabIndex == 2);
+
+            if (tabIndex == 0)
             {
-                btnNavExtract.BackColor = Color.FromArgb(34, 38, 50);
-                btnNavExtract.ForeColor = Color.FromArgb(220, 185, 65);
-                btnNavOverlay.BackColor = Color.FromArgb(24, 27, 35);
-                btnNavOverlay.ForeColor = Color.FromArgb(170, 175, 190);
-                pnlExtractView.Visible = true;
-                pnlOverlayView.Visible = false;
                 pnlExtractView.BringToFront();
             }
-            else
+            else if (tabIndex == 1)
             {
-                btnNavExtract.BackColor = Color.FromArgb(24, 27, 35);
-                btnNavExtract.ForeColor = Color.FromArgb(170, 175, 190);
-                btnNavOverlay.BackColor = Color.FromArgb(34, 38, 50);
-                btnNavOverlay.ForeColor = Color.FromArgb(220, 185, 65);
-                pnlExtractView.Visible = false;
-                pnlOverlayView.Visible = true;
+                pnlBuilderView.BringToFront();
+                LoadSelectedVesselData();
+            }
+            else if (tabIndex == 2)
+            {
                 pnlOverlayView.BringToFront();
                 RefreshMainPresets();
             }
+        }
+
+        public void ShowTabPublic(bool showExtract)
+        {
+            ShowTab(showExtract ? 0 : 2);
         }
 
         private void InitializeExtractView()
@@ -1307,34 +1331,707 @@ Please review the attached spreadsheet and generate my builds!";
             btnOpenFolder.Click += (s, e) => { if (lastResult != null && Directory.Exists(lastResult.SaveDirectory)) Process.Start("explorer.exe", lastResult.SaveDirectory); };
             pnlExtractView.Controls.Add(btnOpenFolder);
 
-            btnCopyAiPrompt = new Button
+            btnGoToBuilder = new Button
             {
-                Text = "📋 Copy AI Build Prompt",
+                Text = "⚱️ Open Vessel & Relic Builder ➔",
                 Location = new Point(360, 354),
                 Width = 350,
                 Height = 32,
-                BackColor = Color.FromArgb(35, 52, 75),
-                ForeColor = Color.FromArgb(170, 215, 255),
+                BackColor = Color.FromArgb(40, 65, 95),
+                ForeColor = Color.FromArgb(190, 225, 255),
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
                 Cursor = Cursors.Hand
             };
-            btnCopyAiPrompt.FlatAppearance.BorderColor = Color.FromArgb(65, 95, 135);
-            btnCopyAiPrompt.Click += (s, e) =>
+            btnGoToBuilder.FlatAppearance.BorderColor = Color.FromArgb(70, 110, 160);
+            btnGoToBuilder.Click += (s, e) => ShowTab(1);
+            pnlExtractView.Controls.Add(btnGoToBuilder);
+        }
+
+        private void InitializeBuilderView()
+        {
+            pnlBuilderView = new Panel
             {
-                try
-                {
-                    Clipboard.SetText(Program.AI_BUILD_PROMPT);
-                    lblStatus.Text = "AI Build Prompt copied to clipboard! Attach relics.xlsx in ChatGPT / Claude.";
-                    lblStatus.ForeColor = Color.FromArgb(120, 230, 120);
-                    MessageBox.Show(this, "The AI Build Optimizer Prompt has been copied to your clipboard!\n\nHow to use:\n1. Open ChatGPT, Claude, or Gemini.\n2. Attach your 'relics.xlsx' (or 'relics.csv') file.\n3. Paste (Ctrl+V) this prompt into the chat to generate custom builds.", "AI Prompt Copied", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(this, "Failed to copy to clipboard: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(20, 22, 28),
+                Padding = new Padding(14, 6, 14, 10),
+                Visible = false,
+                AutoScroll = true
             };
-            pnlExtractView.Controls.Add(btnCopyAiPrompt);
+
+            // Top selection bar
+            Panel pnlTopBar = new Panel
+            {
+                Location = new Point(14, 4),
+                Width = 746,
+                Height = 40,
+                BackColor = Color.FromArgb(26, 30, 40)
+            };
+
+            Label lblChar = new Label
+            {
+                Text = "Character:",
+                Location = new Point(10, 10),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(220, 185, 65),
+                UseMnemonic = false
+            };
+            pnlTopBar.Controls.Add(lblChar);
+
+            cmbBuilderChar = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Location = new Point(84, 7),
+                Width = 110,
+                BackColor = Color.FromArgb(16, 18, 24),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9.5f)
+            };
+            foreach (var ch in SaveRelicWriter.CHARACTERS) cmbBuilderChar.Items.Add(ch);
+            cmbBuilderChar.SelectedIndex = 0;
+            cmbBuilderChar.SelectedIndexChanged += (s, e) => LoadSelectedVesselData();
+            pnlTopBar.Controls.Add(cmbBuilderChar);
+
+            Label lblVessel = new Label
+            {
+                Text = "Vessel / Cup:",
+                Location = new Point(202, 10),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(220, 185, 65),
+                UseMnemonic = false
+            };
+            pnlTopBar.Controls.Add(lblVessel);
+
+            cmbBuilderVessel = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Location = new Point(286, 7),
+                Width = 135,
+                BackColor = Color.FromArgb(16, 18, 24),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9.5f)
+            };
+            foreach (var vn in SaveRelicWriter.VESSEL_NAMES) cmbBuilderVessel.Items.Add(vn);
+            cmbBuilderVessel.SelectedIndex = 0;
+            cmbBuilderVessel.SelectedIndexChanged += (s, e) => LoadSelectedVesselData();
+            pnlTopBar.Controls.Add(cmbBuilderVessel);
+
+            lblBuilderActiveStatus = new Label
+            {
+                Text = "🟢 Active In-Game Vessel",
+                Location = new Point(430, 10),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(90, 220, 120),
+                UseMnemonic = false
+            };
+            pnlTopBar.Controls.Add(lblBuilderActiveStatus);
+
+            btnBuilderReload = new Button
+            {
+                Text = "🔄 Reload",
+                Location = new Point(656, 6),
+                Width = 82,
+                Height = 27,
+                BackColor = Color.FromArgb(40, 48, 62),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                UseMnemonic = false,
+                Cursor = Cursors.Hand
+            };
+            btnBuilderReload.FlatAppearance.BorderColor = Color.FromArgb(65, 80, 105);
+            btnBuilderReload.Click += (s, e) => LoadSelectedVesselData();
+            pnlTopBar.Controls.Add(btnBuilderReload);
+
+            pnlBuilderView.Controls.Add(pnlTopBar);
+
+            // Sub-bar
+            Panel pnlSubBar = new Panel
+            {
+                Location = new Point(14, 48),
+                Width = 736,
+                Height = 26,
+                BackColor = Color.FromArgb(16, 18, 24)
+            };
+
+            chkBuilderSetActive = new CheckBox
+            {
+                Text = "Set as Active In-Game Vessel when saving",
+                Checked = true,
+                Location = new Point(10, 3),
+                Width = 330,
+                ForeColor = Color.FromArgb(120, 220, 160),
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            pnlSubBar.Controls.Add(chkBuilderSetActive);
+
+            Label lblSubHint = new Label
+            {
+                Text = "Click 'Change...' on any slot to select from your save relics",
+                Location = new Point(345, 5),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8f, FontStyle.Italic),
+                ForeColor = Color.FromArgb(160, 170, 185)
+            };
+            pnlSubBar.Controls.Add(lblSubHint);
+
+            pnlBuilderView.Controls.Add(pnlSubBar);
+
+            // Slots Container
+            pnlBuilderSlots = new Panel
+            {
+                Location = new Point(14, 76),
+                Width = 736,
+                Height = 305,
+                BackColor = Color.FromArgb(20, 22, 28)
+            };
+
+            Label lblNormalSec = new Label
+            {
+                Text = "NORMAL RELIC SLOTS (Slots 1 - 3)",
+                Location = new Point(0, 2),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(220, 185, 65)
+            };
+            pnlBuilderSlots.Controls.Add(lblNormalSec);
+
+            Label lblDeepSec = new Label
+            {
+                Text = "DEEP RELIC SLOTS (Slots 4 - 6)",
+                Location = new Point(0, 152),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(150, 180, 255)
+            };
+            pnlBuilderSlots.Controls.Add(lblDeepSec);
+
+            int cardWidth = 238;
+            int cardHeight = 125;
+
+            for (int i = 0; i < 6; i++)
+            {
+                int row = (i < 3) ? 0 : 1;
+                int col = i % 3;
+                int x = (col == 0) ? 0 : (col == 1 ? 249 : 498);
+                int y = (row == 0) ? 20 : 170;
+                int slotIdx = i;
+
+                Panel card = new Panel
+                {
+                    Location = new Point(x, y),
+                    Width = cardWidth,
+                    Height = cardHeight,
+                    BackColor = Color.FromArgb(26, 29, 38)
+                };
+
+                Label lblHeader = new Label
+                {
+                    Text = string.Format("Slot {0} • {1}", i + 1, (i < 3) ? "Normal" : "Deep"),
+                    Location = new Point(8, 6),
+                    AutoSize = true,
+                    Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(180, 190, 210)
+                };
+                card.Controls.Add(lblHeader);
+                lblSlotHeaders[i] = lblHeader;
+
+                Label lblReq = new Label
+                {
+                    Text = "⚪ ANY",
+                    Location = new Point(144, 6),
+                    Width = 86,
+                    TextAlign = ContentAlignment.TopRight,
+                    Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                    ForeColor = Color.White
+                };
+                card.Controls.Add(lblReq);
+                lblSlotReqColors[i] = lblReq;
+
+                Label lblName = new Label
+                {
+                    Text = "[ Empty Slot ]",
+                    Location = new Point(8, 25),
+                    Width = 222,
+                    Height = 18,
+                    AutoEllipsis = true,
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(140, 145, 160)
+                };
+                card.Controls.Add(lblName);
+                lblSlotRelicNames[i] = lblName;
+
+                Label lblEff = new Label
+                {
+                    Text = "Click 'Change...' to equip",
+                    Location = new Point(8, 44),
+                    Width = 222,
+                    Height = 44,
+                    AutoEllipsis = true,
+                    Font = new Font("Segoe UI", 7.5f, FontStyle.Regular),
+                    ForeColor = Color.FromArgb(160, 170, 185)
+                };
+                card.Controls.Add(lblEff);
+                lblSlotRelicEffects[i] = lblEff;
+
+                Button btnChange = new Button
+                {
+                    Text = "✨ Change...",
+                    Location = new Point(8, 92),
+                    Width = 148,
+                    Height = 26,
+                    BackColor = Color.FromArgb(38, 45, 60),
+                    ForeColor = Color.FromArgb(210, 225, 250),
+                    Font = new Font("Segoe UI", 8f, FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat,
+                    Cursor = Cursors.Hand
+                };
+                btnChange.FlatAppearance.BorderColor = Color.FromArgb(65, 75, 95);
+                btnChange.Click += (s, e) => OpenRelicPicker(slotIdx);
+                card.Controls.Add(btnChange);
+                btnSlotChanges[i] = btnChange;
+
+                Button btnClear = new Button
+                {
+                    Text = "✕",
+                    Location = new Point(162, 92),
+                    Width = 68,
+                    Height = 26,
+                    BackColor = Color.FromArgb(50, 32, 36),
+                    ForeColor = Color.FromArgb(240, 140, 140),
+                    Font = new Font("Segoe UI", 8f, FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat,
+                    Cursor = Cursors.Hand
+                };
+                btnClear.FlatAppearance.BorderColor = Color.FromArgb(85, 45, 50);
+                btnClear.Click += (s, e) => ClearSlot(slotIdx);
+                card.Controls.Add(btnClear);
+                btnSlotClears[i] = btnClear;
+
+                card.Paint += (s, e) =>
+                {
+                    Color bCol = GetSlotBorderColor(slotIdx);
+                    using (var pen = new Pen(bCol, 1))
+                    {
+                        e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
+                    }
+                };
+
+                pnlBuilderSlots.Controls.Add(card);
+                slotPanels[i] = card;
+            }
+
+            pnlBuilderView.Controls.Add(pnlBuilderSlots);
+
+            // Bottom Action Bar
+            Panel pnlBottomBar = new Panel
+            {
+                Location = new Point(14, 388),
+                Width = 736,
+                Height = 75,
+                BackColor = Color.FromArgb(20, 22, 28)
+            };
+
+            btnBuilderSave = new Button
+            {
+                Text = "💾 Equip & Save to Save File",
+                Location = new Point(0, 4),
+                Width = 270,
+                Height = 35,
+                BackColor = Color.FromArgb(200, 160, 45),
+                ForeColor = Color.FromArgb(15, 15, 20),
+                Font = new Font("Segoe UI", 10f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                UseMnemonic = false,
+                Cursor = Cursors.Hand
+            };
+            btnBuilderSave.FlatAppearance.BorderColor = Color.FromArgb(235, 195, 80);
+            btnBuilderSave.Click += BtnBuilderSave_Click;
+            pnlBottomBar.Controls.Add(btnBuilderSave);
+
+            btnBuilderPreset = new Button
+            {
+                Text = "⭐ Save as Preset",
+                Location = new Point(280, 4),
+                Width = 200,
+                Height = 35,
+                BackColor = Color.FromArgb(35, 55, 80),
+                ForeColor = Color.FromArgb(180, 220, 255),
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+            btnBuilderPreset.FlatAppearance.BorderColor = Color.FromArgb(60, 95, 140);
+            btnBuilderPreset.Click += BtnBuilderPreset_Click;
+            pnlBottomBar.Controls.Add(btnBuilderPreset);
+
+            btnBuilderClearAll = new Button
+            {
+                Text = "🧹 Clear All 6 Slots",
+                Location = new Point(490, 4),
+                Width = 246,
+                Height = 35,
+                BackColor = Color.FromArgb(42, 45, 55),
+                ForeColor = Color.FromArgb(220, 225, 235),
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+            btnBuilderClearAll.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 90);
+            btnBuilderClearAll.Click += BtnBuilderClearAll_Click;
+            pnlBottomBar.Controls.Add(btnBuilderClearAll);
+
+            lblBuilderSafety = new Label
+            {
+                Text = "🔒 Automatic backup (.bak & timestamped) is always created before every save modification.",
+                Location = new Point(2, 46),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Italic),
+                ForeColor = Color.FromArgb(120, 210, 140)
+            };
+            pnlBottomBar.Controls.Add(lblBuilderSafety);
+
+            pnlBuilderView.Controls.Add(pnlBottomBar);
+        }
+
+        private Color GetSlotBorderColor(int slotIndex)
+        {
+            if (currentVesselDetail != null && slotIndex >= 0 && slotIndex < currentVesselDetail.Slots.Count)
+            {
+                string req = currentVesselDetail.Slots[slotIndex].RequiredColor;
+                if (string.Equals(req, "Red", StringComparison.OrdinalIgnoreCase)) return Color.FromArgb(180, 50, 50);
+                if (string.Equals(req, "Blue", StringComparison.OrdinalIgnoreCase)) return Color.FromArgb(60, 110, 190);
+                if (string.Equals(req, "Yellow", StringComparison.OrdinalIgnoreCase)) return Color.FromArgb(190, 150, 45);
+                if (string.Equals(req, "Green", StringComparison.OrdinalIgnoreCase)) return Color.FromArgb(45, 160, 80);
+                return Color.FromArgb(110, 90, 150); // Any
+            }
+            return Color.FromArgb(70, 75, 90);
+        }
+
+        private void LoadSelectedVesselData()
+        {
+            string path = txtFilePath != null ? txtFilePath.Text.Trim('"', '\'') : "";
+            int charIdx = (cmbBuilderChar != null && cmbBuilderChar.SelectedIndex >= 0) ? cmbBuilderChar.SelectedIndex : 0;
+            int vesselIdx = (cmbBuilderVessel != null && cmbBuilderVessel.SelectedIndex >= 0) ? cmbBuilderVessel.SelectedIndex : 0;
+
+            currentVesselDetail = SaveRelicWriter.ReadCharacterVesselDetail(
+                path,
+                charIdx,
+                vesselIdx,
+                Program.ItemsDb,
+                Program.EffectsDb);
+
+            // Update Active Status
+            if (lblBuilderActiveStatus != null)
+            {
+                if (currentVesselDetail.IsActiveVessel)
+                {
+                    lblBuilderActiveStatus.Text = "🟢 ACTIVE IN-GAME VESSEL";
+                    lblBuilderActiveStatus.ForeColor = Color.FromArgb(90, 220, 120);
+                    if (chkBuilderSetActive != null) chkBuilderSetActive.Checked = true;
+                }
+                else
+                {
+                    lblBuilderActiveStatus.Text = "⚪ Inactive (" + currentVesselDetail.ActiveVesselName + " Active)";
+                    lblBuilderActiveStatus.ForeColor = Color.FromArgb(165, 175, 190);
+                    if (chkBuilderSetActive != null) chkBuilderSetActive.Checked = false;
+                }
+            }
+
+            // Update all 6 slots
+            for (int s = 0; s < 6; s++)
+            {
+                UpdateSlotCardUI(s);
+            }
+        }
+
+        private void UpdateSlotCardUI(int s)
+        {
+            if (currentVesselDetail == null || s < 0 || s >= currentVesselDetail.Slots.Count) return;
+            var slot = currentVesselDetail.Slots[s];
+
+            if (lblSlotHeaders[s] != null)
+            {
+                lblSlotHeaders[s].Text = string.Format("Slot {0} • {1}", s + 1, slot.IsDeepSlot ? "Deep" : "Normal");
+            }
+
+            if (lblSlotReqColors[s] != null)
+            {
+                string c = slot.RequiredColor;
+                string icon = "⚪ ANY";
+                Color fCol = Color.FromArgb(200, 205, 220);
+                if (c == "Red") { icon = "🔴 RED"; fCol = Color.FromArgb(240, 90, 90); }
+                else if (c == "Blue") { icon = "🔵 BLUE"; fCol = Color.FromArgb(90, 160, 240); }
+                else if (c == "Yellow") { icon = "🟡 YELLOW"; fCol = Color.FromArgb(235, 195, 70); }
+                else if (c == "Green") { icon = "🟢 GREEN"; fCol = Color.FromArgb(90, 215, 120); }
+
+                lblSlotReqColors[s].Text = icon;
+                lblSlotReqColors[s].ForeColor = fCol;
+            }
+
+            if (lblSlotRelicNames[s] != null)
+            {
+                if (slot.RelicId != 0)
+                {
+                    lblSlotRelicNames[s].Text = slot.RelicName;
+                    lblSlotRelicNames[s].ForeColor = Color.FromArgb(240, 240, 245);
+                }
+                else
+                {
+                    lblSlotRelicNames[s].Text = "[ Empty Slot ]";
+                    lblSlotRelicNames[s].ForeColor = Color.FromArgb(130, 135, 150);
+                }
+            }
+
+            if (lblSlotRelicEffects[s] != null)
+            {
+                if (slot.RelicId != 0)
+                {
+                    if (slot.EffectDescriptions != null && slot.EffectDescriptions.Count > 0)
+                    {
+                        lblSlotRelicEffects[s].Text = string.Join("\n", slot.EffectDescriptions);
+                        lblSlotRelicEffects[s].ForeColor = Color.FromArgb(180, 210, 235);
+                    }
+                    else
+                    {
+                        lblSlotRelicEffects[s].Text = string.Format("ID: 0x{0:X8} (Color: {1})", slot.RelicId, slot.RelicColor);
+                        lblSlotRelicEffects[s].ForeColor = Color.FromArgb(160, 170, 185);
+                    }
+                }
+                else
+                {
+                    lblSlotRelicEffects[s].Text = "Click 'Change...' to equip a relic";
+                    lblSlotRelicEffects[s].ForeColor = Color.FromArgb(130, 135, 150);
+                }
+            }
+
+            if (slotPanels[s] != null)
+            {
+                slotPanels[s].Invalidate();
+            }
+        }
+
+        private void ClearSlot(int s)
+        {
+            if (currentVesselDetail != null && s >= 0 && s < currentVesselDetail.Slots.Count)
+            {
+                currentVesselDetail.Slots[s].RelicId = 0;
+                currentVesselDetail.Slots[s].RelicName = "[ Empty Slot ]";
+                currentVesselDetail.Slots[s].RelicColor = "None";
+                currentVesselDetail.Slots[s].RelicType = "";
+                currentVesselDetail.Slots[s].EffectDescriptions.Clear();
+                UpdateSlotCardUI(s);
+            }
+        }
+
+        private List<Program.RelicEntry> GetOrExtractPlayerRelics()
+        {
+            string path = txtFilePath != null ? txtFilePath.Text.Trim('"', '\'') : "";
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            {
+                TryAutoDetectFile(false);
+                path = txtFilePath != null ? txtFilePath.Text.Trim('"', '\'') : "";
+            }
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            {
+                MessageBox.Show(this, "Please select or auto-detect your save file (NR0000.co2) first.", "Save File Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return new List<Program.RelicEntry>();
+            }
+
+            try
+            {
+                byte[] cleanData = Program.DecryptSaveFileReadOnly(path);
+                return Program.ExtractRelics(cleanData, Program.ItemsDb);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Failed to read relics from save file:\n" + ex.Message, "Read Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return new List<Program.RelicEntry>();
+            }
+        }
+
+        private void OpenRelicPicker(int slotIndex)
+        {
+            if (currentVesselDetail == null || slotIndex < 0 || slotIndex >= currentVesselDetail.Slots.Count) return;
+
+            var relics = GetOrExtractPlayerRelics();
+            if (relics == null || relics.Count == 0) return;
+
+            var slot = currentVesselDetail.Slots[slotIndex];
+
+            using (var picker = new RelicPickerDialog(
+                currentVesselDetail.CharacterName,
+                currentVesselDetail.VesselName,
+                slotIndex + 1,
+                slot.IsDeepSlot,
+                slot.RequiredColor,
+                relics,
+                Program.EffectsDb))
+            {
+                if (picker.ShowDialog(this) == DialogResult.OK)
+                {
+                    if (picker.ClearSelected)
+                    {
+                        ClearSlot(slotIndex);
+                    }
+                    else if (picker.SelectedRelic != null)
+                    {
+                        var r = picker.SelectedRelic;
+                        slot.RelicId = r.RelicId;
+                        slot.RelicName = (r.Item != null) ? r.Item.NameEn : string.Format("Relic 0x{0:X8}", r.RelicId);
+                        slot.RelicColor = (r.Item != null) ? r.Item.Color : "Unknown";
+                        slot.RelicType = (r.Item != null) ? r.Item.Type : "";
+                        slot.EffectDescriptions.Clear();
+
+                        if (Program.EffectsDb != null && r.EffectIds != null)
+                        {
+                            foreach (var effId in r.EffectIds)
+                            {
+                                Program.EffectInfo eff;
+                                if (Program.EffectsDb.TryGetValue(effId, out eff))
+                                {
+                                    slot.EffectDescriptions.Add(eff.NameEn);
+                                }
+                            }
+                        }
+                        UpdateSlotCardUI(slotIndex);
+                    }
+                }
+            }
+        }
+
+        private void BtnBuilderSave_Click(object sender, EventArgs e)
+        {
+            string savePath = txtFilePath.Text.Trim('"', '\'');
+            if (string.IsNullOrEmpty(savePath) || !File.Exists(savePath))
+            {
+                MessageBox.Show(this, "Please select or auto-detect a valid save file first.", "Save File Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (currentVesselDetail == null) return;
+
+            var relicIds = new List<uint>();
+            for (int s = 0; s < 6; s++)
+            {
+                relicIds.Add(currentVesselDetail.Slots[s].RelicId);
+            }
+
+            try
+            {
+                string backupPath;
+                bool setActive = chkBuilderSetActive.Checked;
+                SaveRelicWriter.SaveVesselLoadout(
+                    savePath,
+                    currentVesselDetail.CharacterIndex,
+                    currentVesselDetail.VesselTypeIndex,
+                    setActive,
+                    relicIds,
+                    out backupPath);
+
+                string activeMsg = setActive ? "Yes (Vessel set as active in-game)" : "No (Vessel saved to character profile)";
+                string msg = string.Format(
+                    "Build successfully saved to your save file!\n\n" +
+                    "Character: {0}\n" +
+                    "Vessel: {1}\n" +
+                    "Equipped As Active: {2}\n\n" +
+                    "🔒 AUTOMATIC BACKUP CREATED:\n{3}\n\n" +
+                    "How to activate in-game:\n" +
+                    "1. Return to the Main Menu in Nightreign.\n" +
+                    "2. Select 'Continue' or 'Load Game'.\n\n" +
+                    "(Other multiplayer co-op players do NOT need this app installed!)",
+                    currentVesselDetail.CharacterName,
+                    currentVesselDetail.VesselName,
+                    activeMsg,
+                    backupPath);
+
+                MessageBox.Show(this, msg, "Build Saved Successfully", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                LoadSelectedVesselData();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Failed to save build to save file:\n" + ex.Message, "Save Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void BtnBuilderPreset_Click(object sender, EventArgs e)
+        {
+            if (currentVesselDetail == null) return;
+
+            string defaultName = currentVesselDetail.CharacterName + " - " + currentVesselDetail.VesselName + " Build";
+
+            using (var prompt = new Form())
+            {
+                prompt.Width = 380;
+                prompt.Height = 170;
+                prompt.FormBorderStyle = FormBorderStyle.FixedDialog;
+                prompt.Text = "Save as Loadout Preset";
+                prompt.StartPosition = FormStartPosition.CenterParent;
+                prompt.BackColor = Color.FromArgb(24, 26, 34);
+                prompt.ForeColor = Color.White;
+
+                Label lblPrompt = new Label { Left = 20, Top = 16, Text = "Preset Name:", AutoSize = true };
+                TextBox txtName = new TextBox { Left = 20, Top = 40, Width = 320, Text = defaultName, BackColor = Color.FromArgb(16, 18, 24), ForeColor = Color.White };
+                Button btnOk = new Button { Text = "Save", Left = 170, Width = 80, Top = 80, DialogResult = DialogResult.OK, BackColor = Color.FromArgb(200, 160, 45), ForeColor = Color.Black, FlatStyle = FlatStyle.Flat };
+                Button btnCancel = new Button { Text = "Cancel", Left = 260, Width = 80, Top = 80, DialogResult = DialogResult.Cancel, BackColor = Color.FromArgb(40, 45, 55), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+
+                prompt.Controls.Add(lblPrompt);
+                prompt.Controls.Add(txtName);
+                prompt.Controls.Add(btnOk);
+                prompt.Controls.Add(btnCancel);
+                prompt.AcceptButton = btnOk;
+                prompt.CancelButton = btnCancel;
+
+                if (prompt.ShowDialog(this) == DialogResult.OK && !string.IsNullOrEmpty(txtName.Text.Trim()))
+                {
+                    var relicIds = new List<uint>();
+                    var relicNames = new List<string>();
+                    var relicColors = new List<string>();
+
+                    for (int s = 0; s < 6; s++)
+                    {
+                        var slot = currentVesselDetail.Slots[s];
+                        if (slot.RelicId != 0)
+                        {
+                            relicIds.Add(slot.RelicId);
+                            relicNames.Add(slot.RelicName);
+                            relicColors.Add(slot.RelicColor);
+                        }
+                    }
+
+                    var preset = new LoadoutPreset
+                    {
+                        Name = txtName.Text.Trim(),
+                        CharacterName = currentVesselDetail.CharacterName,
+                        VesselId = currentVesselDetail.VesselId,
+                        VesselName = currentVesselDetail.VesselName,
+                        RelicIds = relicIds,
+                        RelicNames = relicNames,
+                        RelicColors = relicColors,
+                        Description = "Created via Vessel Builder on " + DateTime.Now.ToString("g")
+                    };
+
+                    PresetManager.AddOrUpdatePreset(preset);
+                    RefreshMainPresets();
+                    MessageBox.Show(this, "Preset '" + preset.Name + "' saved!\n\nYou can now swap to this build anytime using the F10 in-game overlay.", "Preset Saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+        }
+
+        private void BtnBuilderClearAll_Click(object sender, EventArgs e)
+        {
+            if (currentVesselDetail == null) return;
+            var res = MessageBox.Show(this, "Are you sure you want to clear all 6 slots for this vessel in the builder?", "Clear All Slots", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (res == DialogResult.Yes)
+            {
+                for (int s = 0; s < 6; s++)
+                {
+                    ClearSlot(s);
+                }
+            }
         }
 
         private void InitializeOverlayView()
@@ -1875,11 +2572,6 @@ Please review the attached spreadsheet and generate my builds!";
         public void TriggerExtraction()
         {
             DoExtraction();
-        }
-
-        public void ShowTabPublic(bool showExtract)
-        {
-            ShowTab(showExtract);
         }
     }
 }

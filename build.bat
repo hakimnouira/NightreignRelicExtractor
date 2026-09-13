@@ -12,7 +12,7 @@ if not exist "%CSC%" (
     exit /b 1
 )
 
-"%CSC%" /nologo /codepage:65001 /utf8output /optimize+ /target:exe /out:NightreignRelicExtractor.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll /r:System.Web.Extensions.dll /res:items_data.json,items_data.json /res:effects_data.json,effects_data.json NightreignRelicExtractor.cs PresetManager.cs SaveRelicWriter.cs OverlayForm.cs
+"%CSC%" /nologo /codepage:65001 /utf8output /optimize+ /target:exe /out:NightreignRelicExtractor.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll /r:System.Web.Extensions.dll /res:items_data.json,items_data.json /res:effects_data.json,effects_data.json NightreignRelicExtractor.cs PresetManager.cs SaveRelicWriter.cs OverlayForm.cs RelicPickerDialog.cs
 
 if %errorlevel% equ 0 (
     echo.

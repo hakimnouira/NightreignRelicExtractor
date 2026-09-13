@@ -9,17 +9,31 @@
 [![Mode](https://img.shields.io/badge/Mode-Strict_Read--Only-brightgreen)](#)
 
 A fast, lightweight, and completely standalone Windows tool for **Elden Ring Nightreign** that provides:
-1. **In-Game HUD Overlay & Loadout Switcher (F10)**: Swap 6-relic vessel builds with 1 click while playing in-game (fullscreen / borderless). **Other multiplayer co-op players do NOT need to install anything!**
-2. **Relic Inventory Extractor**: Extracts your full relic inventory from `.co2` / `.sl2` save files directly into **CSV** and **Excel (.xlsx)**.
-3. **AI Build Optimizer Prompt**: 1-click copyable expert prompt to generate customized top-tier builds in ChatGPT, Claude, or Gemini!
+1. **⚱️ In-App Vessel & Relic Builder**: Customize and equip your 6-relic vessel builds (3 Normal + 3 Deep) for all 10 characters and 7 vessel types (Urn, Goblet, Chalice, etc.) with slot color constraints and instant inventory search.
+2. **🎮 In-Game HUD Overlay & Loadout Switcher (F10)**: Swap 6-relic vessel builds with 1 click while playing in-game (fullscreen / borderless). **Other multiplayer co-op players do NOT need to install anything!**
+3. **📥 Relic Inventory Extractor**: Extracts your full relic inventory from `.co2` / `.sl2` save files directly into **CSV** and **Excel (.xlsx)**.
+4. **🔒 Guaranteed Automatic Backups**: A timestamped backup (`.bak_YYYYMMDD_HHMMSS`) is **always** created before any modification to your save file.
 
 ---
 
 ### In-Game Overlay & Main Interface
 
-| In-Game HUD Overlay (Hotkey: `F10`) | Main Extractor & Presets Interface |
+| In-Game HUD Overlay (Hotkey: `F10`) | Main Vessel Builder & Extractor |
 |:---:|:---:|
 | ![In-Game Overlay](assets/screenshot_overlay.png) | ![Main Window](assets/screenshot.png) |
+
+---
+
+## ⚱️ Interactive Vessel & Relic Builder
+
+Build and test optimal relic combinations directly in the app:
+- **All 10 Characters Supported**: Wylder, Guardian, Iron Eye, Duchess, Raider, Revenant, Recluse, Executor, Scholar, Undertaker.
+- **All 7 Vessel Types**: Urn, Goblet, Chalice, Soot-Covered Urn, Sealed Urn, Decrepit Goblet, Forgotten Goblet.
+- **Slot Color Matching**: Enforces character vessel color rules (🔴 Red, 🔵 Blue, 🟡 Yellow, 🟢 Green, ⚪ Any).
+- **Normal & Deep Relics**: Slots 1–3 for standard relics, Slots 4–6 for Deep relics.
+- **Live Search & Filter**: Search by relic name or effect description (e.g. *Physical Attack*, *HP Regen*, *Blood loss*).
+- **One-Click Equip & Safe Save**: Writes the build into your save file and sets it active. **Always creates a timestamped `.bak` before touching the file!**
+- **Save as Preset**: Save your build directly into your presets list to access it in the in-game F10 overlay!
 
 ---
 
@@ -48,30 +62,16 @@ You do **not** need to install Python, Node.js, or any package managers. The pro
 
 1. **[Click here to download NightreignRelicExtractor.exe](https://github.com/hakimnouira/NightreignRelicExtractor/raw/main/NightreignRelicExtractor.exe)** (or visit [Releases](https://github.com/hakimnouira/NightreignRelicExtractor/releases)).
 2. Double-click **`NightreignRelicExtractor.exe`** to open the interface.
-3. Click **Auto-Detect** (or **Browse...** to pick your `NR0000.co2`), then click **Extract Relics** or switch to the **Loadouts & Overlay** tab.
-
----
-
-## 🤖 AI Build Optimizer (ChatGPT / Claude / Gemini)
-
-Once you extract your relics, you can turn your spreadsheet into custom, high-tier character builds using AI:
-
-1. Click **📋 Copy AI Build Prompt** inside the application (or view [PROMPT.md](PROMPT.md)).
-2. Open your favorite AI chatbot (**ChatGPT**, **Claude**, or **Gemini**).
-3. **Upload / attach your generated `relics.xlsx`** (or `relics.csv`).
-4. **Paste (Ctrl+V) the prompt** into the chat and send!
-
-The AI will analyze your actual relic inventory, enforce vessel color constraints and deep relic rules, and recommend the best 6-relic combinations for each character (Wylder, Guardian, Duchess, Recluse, etc.).
+3. Click **Auto-Detect** (or **Browse...** to pick your `NR0000.co2`), then switch to the **Vessel Builder** or **Loadouts & Overlay** tab.
 
 ---
 
 ## Key Features
 
-- **Strict Read-Only Guarantee**: Opens save files strictly with `FileAccess.Read` and `FileShare.ReadWrite`. **Never modifies, overwrites, or touches your original save file** (verified via SHA-256 hash checks).
-- **Extracts Every Relic Instance**: Every physical relic in your save file becomes its own row. Duplicate relics (e.g. multiple *Grand Tranquil Scene* relics with different effect rolls) are never merged.
-- **Accurate Unknown Effect Handling**: If an effect ID is missing from community databases, the tool will **not** guess or skip the relic. It marks the effect name as `UNKNOWN` and preserves the exact original **Effect ID** and **Raw Value**.
-- **Dual Interface**:
-  - **GUI Mode**: Clean Elden Ring-themed window with **Browse**, **Auto-Detect** (scans `%APPDATA%\Nightreign\`), drag-and-drop support, and one-click buttons to open CSV, Excel, or copy the AI build prompt.
+- **Safe Automatic Backup Guarantee**: Every write operation unconditionally creates both a timestamped backup (`.bak_YYYYMMDD_HHMMSS`) and `.bak` before modifying anything.
+- **Relic Extraction**: Extracts every physical relic in your save file into cleanly formatted CSV and Excel spreadsheets.
+- **Accurate Unknown Effect Handling**: Preserves raw effect IDs and descriptions without crashing on unmapped rolls.
+- **Zero-Mod Multiplayer**: Vanilla save ID writing ensures friends in co-op don't need to install any mod or tool.
   - **CLI / Drag-to-EXE Mode**: Run headless from PowerShell/Command Prompt or drag your `.co2` file directly onto the executable icon.
 
 ---
@@ -144,7 +144,7 @@ To rebuild `NightreignRelicExtractor.exe`:
 - Double-click **`build.bat`**, or
 - Run the following command from PowerShell:
 ```powershell
-& "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /codepage:65001 /utf8output /optimize+ /target:exe /out:NightreignRelicExtractor.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll /r:System.Web.Extensions.dll /res:items_data.json,items_data.json /res:effects_data.json,effects_data.json NightreignRelicExtractor.cs PresetManager.cs SaveRelicWriter.cs OverlayForm.cs
+& "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /codepage:65001 /utf8output /optimize+ /target:exe /out:NightreignRelicExtractor.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll /r:System.Web.Extensions.dll /res:items_data.json,items_data.json /res:effects_data.json,effects_data.json NightreignRelicExtractor.cs PresetManager.cs SaveRelicWriter.cs OverlayForm.cs RelicPickerDialog.cs
 ```
 
 ---
