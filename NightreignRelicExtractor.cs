@@ -2209,7 +2209,7 @@ namespace NightreignRelicExtractor
                     "Character: {0}\n" +
                     "Vessel: {1}\n" +
                     "Equipped As Active: {2}\n\n" +
-                    "🔒 AUTOMATIC BACKUP CREATED:\n{3}\n\n" +
+                    "🔒 AUTOMATIC BACKUP CREATED (Max 4 kept, oldest auto-deleted):\n{3}\n\n" +
                     "How to activate in-game:\n" +
                     "1. Return to the Main Menu in Nightreign.\n" +
                     "2. Select 'Continue' or 'Load Game'.\n\n" +

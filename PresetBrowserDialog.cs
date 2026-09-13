@@ -376,7 +376,7 @@ namespace NightreignRelicExtractor
                 {
                     string bak;
                     SaveRelicWriter.ApplyPreset(targetSave, preset, out bak, setActiveVessel: true);
-                    MessageBox.Show(this, string.Format("Loadout '{0}' applied to save file!\n\nBackup created at:\n{1}\n\n👉 Now exit to Main Menu and click 'Continue' to reload.", preset.Name, bak), "Preset Applied", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(this, string.Format("Loadout '{0}' applied to save file!\n\nBackup created at:\n{1}\n(Max 4 backups kept, oldest auto-deleted)\n\n👉 Now exit to Main Menu and click 'Continue' to reload.", preset.Name, bak), "Preset Applied", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 catch (Exception ex)
                 {

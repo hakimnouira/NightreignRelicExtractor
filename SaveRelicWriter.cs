@@ -521,21 +521,72 @@ namespace NightreignRelicExtractor
             return list;
         }
 
+        public const int MAX_BACKUP_FILES = 4;
+
+        public static string CreateBackupAndRotate(string saveFilePath, int maxBackups = MAX_BACKUP_FILES)
+        {
+            string dir = Path.GetDirectoryName(saveFilePath);
+            string baseName = Path.GetFileName(saveFilePath);
+            string timeStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            string backupPath = Path.Combine(dir, string.Format("{0}.bak_{1}", baseName, timeStamp));
+
+            if (File.Exists(backupPath))
+            {
+                backupPath = Path.Combine(dir, string.Format("{0}.bak_{1}_{2}", baseName, timeStamp, DateTime.Now.Millisecond));
+            }
+
+            File.Copy(saveFilePath, backupPath, true);
+
+            // Rotate backups: keep max 4, delete oldest
+            try
+            {
+                var di = new DirectoryInfo(dir);
+                var backupFiles = di.GetFiles(baseName + ".bak_*");
+                if (backupFiles.Length > maxBackups)
+                {
+                    Array.Sort(backupFiles, delegate (FileInfo a, FileInfo b)
+                    {
+                        int cmp = a.LastWriteTimeUtc.CompareTo(b.LastWriteTimeUtc);
+                        if (cmp == 0) cmp = string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+                        return cmp;
+                    });
+
+                    int toDelete = backupFiles.Length - maxBackups;
+                    for (int i = 0; i < toDelete; i++)
+                    {
+                        try
+                        {
+                            backupFiles[i].Attributes = FileAttributes.Normal;
+                            backupFiles[i].Delete();
+                        }
+                        catch { }
+                    }
+                }
+
+                // Also clean up redundant non-timestamped baseName.bak if present
+                string looseBak = Path.Combine(dir, baseName + ".bak");
+                if (File.Exists(looseBak))
+                {
+                    try
+                    {
+                        File.SetAttributes(looseBak, FileAttributes.Normal);
+                        File.Delete(looseBak);
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+
+            return backupPath;
+        }
+
         public static void ApplyPreset(string saveFilePath, LoadoutPreset preset, out string backupPath, bool setActiveVessel = true)
         {
             if (!File.Exists(saveFilePath))
                 throw new FileNotFoundException("Save file not found: " + saveFilePath);
 
-            // 1. Create timestamped backup
-            string dir = Path.GetDirectoryName(saveFilePath);
-            string baseName = Path.GetFileName(saveFilePath);
-            string timeStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            backupPath = Path.Combine(dir, string.Format("{0}.bak_{1}", baseName, timeStamp));
-            File.Copy(saveFilePath, backupPath, true);
-
-            // Also keep standard .bak
-            string latestBak = Path.Combine(dir, baseName + ".bak");
-            File.Copy(saveFilePath, latestBak, true);
+            // 1. Create timestamped backup and rotate (max 4 kept, oldest deleted)
+            backupPath = CreateBackupAndRotate(saveFilePath, MAX_BACKUP_FILES);
 
             // 2. Read and decrypt Entry 0
             byte[] raw = File.ReadAllBytes(saveFilePath);

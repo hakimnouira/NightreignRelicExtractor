@@ -136,9 +136,9 @@ namespace NightreignRelicExtractor
                 "إفراغ جميع الخانات الـ 6");
 
             Add("BackupNotice", 
-                "Automatic backup (.bak timestamped) is always created before every save modification.", 
-                "Une sauvegarde automatique (.bak horodatée) est toujours créée avant chaque modification.", 
-                "يتم دائمًا إنشاء نسخة احتياطية تلقائية (.bak ومؤرخة) قبل أي تعديل.");
+                "Automatic backup (.bak timestamped, max 4 kept) is always created before every save modification.", 
+                "Une sauvegarde automatique (.bak horodatée, max 4 conservées) est toujours créée avant chaque modification.", 
+                "يتم دائمًا إنشاء نسخة احتياطية تلقائية (.bak مؤرخة، والاحتفاظ بـ 4 كحد أقصى) قبل أي تعديل.");
 
             // Slots
             Add("NormalSlotsTitle", 
