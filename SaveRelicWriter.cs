@@ -236,27 +236,108 @@ namespace NightreignRelicExtractor
         }
 
         /// <summary>
-        /// Finds the exact byte offset in decrypted cleanData of the specified vesselId.
-        /// Returns -1 if the vessel is not found.
+        /// Finds the base offset of the 10 character blocks in cleanData.
+        /// Character 0 (Wylder) marker is 0x0000FF01, followed at stride 0x78 by Character 1 (0x0000FF02).
+        /// Returns -1 if not found.
+        /// </summary>
+        public static int FindCharacterMarkersBase(byte[] cleanData)
+        {
+            if (cleanData == null || cleanData.Length < 0x2000) return -1;
+
+            int maxSearch = cleanData.Length - 10 * 0x78 - 70 * 28;
+            for (int p = 0x10000; p <= maxSearch; p += 4)
+            {
+                if (BitConverter.ToUInt32(cleanData, p) == 0x0000FF01 &&
+                    BitConverter.ToUInt32(cleanData, p + 0x78) == 0x0000FF02)
+                {
+                    return p;
+                }
+            }
+
+            // Fallback: wider scan across entire data if save structure differs
+            for (int p = 0; p < cleanData.Length - 0x80; p += 4)
+            {
+                if (BitConverter.ToUInt32(cleanData, p) == 0x0000FF01 &&
+                    BitConverter.ToUInt32(cleanData, p + 0x78) == 0x0000FF02)
+                {
+                    return p;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// Reads the currently active vessel ID for a character from save file directly.
+        /// </summary>
+        public static uint GetActiveVesselForCharacter(string saveFilePath, int charIndex)
+        {
+            if (!File.Exists(saveFilePath) || charIndex < 0 || charIndex >= CHARACTERS.Length) return 0;
+            try
+            {
+                byte[] cleanData = Program.DecryptSaveFileReadOnly(saveFilePath);
+                int markerBase = FindCharacterMarkersBase(cleanData);
+                if (markerBase != -1)
+                {
+                    int markerPos = markerBase + charIndex * 0x78;
+                    if (markerPos + 8 <= cleanData.Length)
+                    {
+                        return BitConverter.ToUInt32(cleanData, markerPos + 4);
+                    }
+                }
+            }
+            catch { }
+            return 0;
+        }
+
+        /// <summary>
+        /// Finds the exact byte offset in decrypted cleanData of the specified vesselId entry in the vessel table.
         /// When found at offset p:
         /// cleanData[p] = vesselId
         /// cleanData[p + 4] = relic slot 1 (normal slot 1)
         /// cleanData[p + 8] = relic slot 2 (normal slot 2)
         /// cleanData[p + 12] = relic slot 3 (normal slot 3)
+        /// NOTE: The vessel table is located strictly after all 10 character blocks (charMarkersBase + 10 * 0x78).
+        /// This ensures we NEVER match the activeVesselId field inside a character's marker block.
         /// </summary>
-        public static int FindVesselRelicOffset(byte[] cleanData, uint vesselId)
+        public static int FindVesselRelicOffset(byte[] cleanData, uint vesselId, int charMarkersBase = -1)
         {
             if (cleanData == null || vesselId == 0) return -1;
-            // Scan vessel table area across save progressions
-            for (int p = 0x1A000; p < 0x24000 && p + 16 <= cleanData.Length; p += 4)
+
+            if (charMarkersBase < 0)
             {
-                if (BitConverter.ToUInt32(cleanData, p) == vesselId)
+                charMarkersBase = FindCharacterMarkersBase(cleanData);
+            }
+
+            if (charMarkersBase > 0)
+            {
+                int c = (int)(vesselId / 1000) - 1;
+                int v = (int)(vesselId % 1000);
+                if (c >= 0 && c < CHARACTERS.Length && v >= 0 && v < VESSEL_NAMES.Length)
                 {
-                    return p;
+                    int vesselTableBase = charMarkersBase + 10 * 0x78;
+                    int entryOffset = vesselTableBase + (c * 7 + v) * 28;
+                    if (entryOffset + 16 <= cleanData.Length && BitConverter.ToUInt32(cleanData, entryOffset) == vesselId)
+                    {
+                        return entryOffset;
+                    }
+                }
+
+                // Fallback: scan strictly inside the vessel table region (after all 10 character blocks)
+                int searchStart = charMarkersBase + 10 * 0x78;
+                int searchEnd = Math.Min(cleanData.Length - 16, searchStart + 70 * 28 + 0x400);
+                for (int p = searchStart; p <= searchEnd; p += 4)
+                {
+                    if (BitConverter.ToUInt32(cleanData, p) == vesselId)
+                    {
+                        return p;
+                    }
                 }
             }
+
             return -1;
         }
+
 
 
         public static VesselDetailInfo ReadCharacterVesselDetail(
@@ -332,26 +413,20 @@ namespace NightreignRelicExtractor
                     }
                 }
 
-                uint marker = 0x0000FF01 + (uint)charIndex;
-                int markerPos = -1;
-                for (int p = 0x1B800; p < 0x1BE00; p += 4)
+                int markerBase = FindCharacterMarkersBase(cleanData);
+                if (markerBase != -1 && charIndex >= 0 && charIndex < CHARACTERS.Length)
                 {
-                    if (BitConverter.ToUInt32(cleanData, p) == marker)
+                    int markerPos = markerBase + charIndex * 0x78;
+                    if (markerPos + 8 <= cleanData.Length)
                     {
-                        markerPos = p;
-                        break;
+                        info.ActiveVesselId = BitConverter.ToUInt32(cleanData, markerPos + 4);
+                        info.ActiveVesselName = GetVesselName(info.ActiveVesselId);
+                        info.IsActiveVessel = (vesselTypeIndex == (int)(info.ActiveVesselId % 1000));
                     }
                 }
 
-                if (markerPos != -1)
-                {
-                    info.ActiveVesselId = BitConverter.ToUInt32(cleanData, markerPos + 4);
-                    info.ActiveVesselName = GetVesselName(info.ActiveVesselId);
-                    info.IsActiveVessel = (vesselTypeIndex == (int)(info.ActiveVesselId % 1000));
-                }
-
                 uint expectedVesselId = (uint)((charIndex + 1) * 1000 + vesselTypeIndex);
-                int vesselOffset = FindVesselRelicOffset(cleanData, expectedVesselId);
+                int vesselOffset = FindVesselRelicOffset(cleanData, expectedVesselId, markerBase);
 
                 if (vesselOffset != -1)
                 {
@@ -445,24 +520,17 @@ namespace NightreignRelicExtractor
                 catch { }
             }
 
+            int markerBase = FindCharacterMarkersBase(cleanData);
+            if (markerBase == -1) return list;
+
             // Scan all 10 characters
             for (int c = 0; c < CHARACTERS.Length; c++)
             {
-                uint marker = 0x0000FF01 + (uint)c;
-                int markerPos = -1;
-                for (int p = 0x18000; p < 0x22000 && p + 8 <= cleanData.Length; p += 4)
-                {
-                    if (BitConverter.ToUInt32(cleanData, p) == marker)
-                    {
-                        markerPos = p;
-                        break;
-                    }
-                }
+                int markerPos = markerBase + c * 0x78;
+                if (markerPos + 8 > cleanData.Length) break;
 
-                if (markerPos != -1)
-                {
-                    uint activeVid = BitConverter.ToUInt32(cleanData, markerPos + 4);
-                    int vesselOffset = FindVesselRelicOffset(cleanData, activeVid);
+                uint activeVid = BitConverter.ToUInt32(cleanData, markerPos + 4);
+                int vesselOffset = FindVesselRelicOffset(cleanData, activeVid, markerBase);
 
                     var info = new CharacterLoadoutInfo
                     {
@@ -515,8 +583,6 @@ namespace NightreignRelicExtractor
 
                 list.Add(info);
             }
-        }
-
 
             return list;
         }
@@ -621,19 +687,13 @@ namespace NightreignRelicExtractor
             if (charIndex < 0)
                 throw new ArgumentException("Unknown character name: " + preset.CharacterName);
 
-            uint marker = 0x0000FF01 + (uint)charIndex;
-            int markerPos = -1;
-            for (int p = 0x18000; p < 0x22000 && p + 8 <= cleanData.Length; p += 4)
-            {
-                if (BitConverter.ToUInt32(cleanData, p) == marker)
-                {
-                    markerPos = p;
-                    break;
-                }
-            }
+            int markerBase = FindCharacterMarkersBase(cleanData);
+            if (markerBase == -1)
+                throw new InvalidDataException("Character profile markers not found in save.");
 
-            if (markerPos == -1)
-                throw new InvalidDataException("Character profile not found in save for " + preset.CharacterName);
+            int markerPos = markerBase + charIndex * 0x78;
+            if (markerPos + 8 > cleanData.Length)
+                throw new InvalidDataException("Save data too small for character profile of " + preset.CharacterName);
 
             uint targetVesselId = preset.VesselId;
             if (targetVesselId == 0)
@@ -647,7 +707,7 @@ namespace NightreignRelicExtractor
                 BitConverter.GetBytes(targetVesselId).CopyTo(cleanData, markerPos + 4);
             }
 
-            int vesselOffset = FindVesselRelicOffset(cleanData, targetVesselId);
+            int vesselOffset = FindVesselRelicOffset(cleanData, targetVesselId, markerBase);
             if (vesselOffset == -1)
                 throw new InvalidDataException("Vessel " + targetVesselId + " not found in save file table.");
 

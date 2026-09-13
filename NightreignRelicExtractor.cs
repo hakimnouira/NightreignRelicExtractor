@@ -1564,7 +1564,7 @@ namespace NightreignRelicExtractor
             };
             foreach (var ch in SaveRelicWriter.CHARACTERS) cmbBuilderChar.Items.Add(ch);
             cmbBuilderChar.SelectedIndex = 0;
-            cmbBuilderChar.SelectedIndexChanged += (s, e) => LoadSelectedVesselData();
+            cmbBuilderChar.SelectedIndexChanged += (s, e) => LoadSelectedVesselData(autoSelectActiveVessel: true);
             pnlTopBar.Controls.Add(cmbBuilderChar);
 
             Label lblVessel = new Label
@@ -1947,11 +1947,28 @@ namespace NightreignRelicExtractor
             return Color.FromArgb(70, 75, 90);
         }
 
-        private void LoadSelectedVesselData()
+        private void LoadSelectedVesselData(bool autoSelectActiveVessel = false)
         {
             string path = txtFilePath != null ? txtFilePath.Text.Trim('"', '\'') : "";
             int charIdx = (cmbBuilderChar != null && cmbBuilderChar.SelectedIndex >= 0) ? cmbBuilderChar.SelectedIndex : 0;
             int vesselIdx = (cmbBuilderVessel != null && cmbBuilderVessel.SelectedIndex >= 0) ? cmbBuilderVessel.SelectedIndex : 0;
+
+            if (autoSelectActiveVessel && File.Exists(path))
+            {
+                uint activeVid = SaveRelicWriter.GetActiveVesselForCharacter(path, charIdx);
+                if (activeVid > 0)
+                {
+                    int activeVesselType = (int)(activeVid % 1000);
+                    if (activeVesselType >= 0 && activeVesselType < SaveRelicWriter.VESSEL_NAMES.Length)
+                    {
+                        if (cmbBuilderVessel != null && cmbBuilderVessel.SelectedIndex != activeVesselType)
+                        {
+                            cmbBuilderVessel.SelectedIndex = activeVesselType;
+                            return;
+                        }
+                    }
+                }
+            }
 
             currentVesselDetail = SaveRelicWriter.ReadCharacterVesselDetail(
                 path,
