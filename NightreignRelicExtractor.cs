@@ -1203,6 +1203,18 @@ namespace NightreignRelicExtractor
                 BorderStyle = BorderStyle.FixedSingle,
                 Font = new Font("Segoe UI", 9.5f)
             };
+
+            // Warning label shown when a non-Steam-ID path is detected
+            Label lblPathWarning = new Label
+            {
+                Text = "⚠️  Wrong file? The game only reads from the Steam-ID subfolder (e.g. ...\\76561199865253630\\NR0000.co2). Click Auto-Detect.",
+                Font = new Font("Segoe UI", 8f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(255, 195, 80),
+                AutoSize = true,
+                Location = new Point(18, 56),
+                Visible = false
+            };
+
             txtFilePath.TextChanged += (s, e) =>
             {
                 if (overlayForm != null && !overlayForm.IsDisposed)
@@ -1210,8 +1222,23 @@ namespace NightreignRelicExtractor
                     overlayForm.UpdateSavePath(txtFilePath.Text.Trim('"', '\''));
                 }
                 LoadSelectedVesselData();
+
+                // Warn if the user loaded the root NR0000.co2 instead of the Steam-ID subfolder one
+                string currentPath = txtFilePath.Text.Trim();
+                bool looksWrong = !string.IsNullOrEmpty(currentPath)
+                                  && File.Exists(currentPath)
+                                  && !HasSteamIdComponent(currentPath)
+                                  && currentPath.IndexOf("Nightreign", StringComparison.OrdinalIgnoreCase) >= 0;
+                lblPathWarning.Visible = looksWrong;
+                if (looksWrong)
+                    pnlFileBar.Height = 80;  // expand bar to show warning
+                else
+                    pnlFileBar.Height = 58;
             };
             pnlFileBar.Controls.Add(txtFilePath);
+            pnlFileBar.Controls.Add(lblPathWarning);
+
+
 
             btnBrowse = new Button
             {
@@ -2620,113 +2647,132 @@ namespace NightreignRelicExtractor
 
         private void TryAutoDetectFile(bool userClicked = false)
         {
-            // 1. Check current working directory first (drag-drop or portable usage)
-            if (File.Exists("NR0000.co2"))
-            {
-                txtFilePath.Text = Path.GetFullPath("NR0000.co2");
-                if (userClicked) MessageBox.Show(this, "Found NR0000.co2 in current folder!", "Auto-Detect", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            // 2. Search %APPDATA%\Nightreign recursively for both .co2 and .sl2
+            // 1. Search %APPDATA%\Nightreign recursively for NR0000.co2
             string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             string nrRoaming = Path.Combine(appData, "Nightreign");
 
-            var candidates = new List<string>();
+            var allCo2 = new List<string>();
             if (Directory.Exists(nrRoaming))
             {
-                candidates.AddRange(Directory.GetFiles(nrRoaming, "NR0000.co2", SearchOption.AllDirectories));
-                candidates.AddRange(Directory.GetFiles(nrRoaming, "NR0000.sl2", SearchOption.AllDirectories));
+                allCo2.AddRange(Directory.GetFiles(nrRoaming, "NR0000.co2", SearchOption.AllDirectories));
+                // Also check .sl2 as fallback
+                if (allCo2.Count == 0)
+                    allCo2.AddRange(Directory.GetFiles(nrRoaming, "NR0000.sl2", SearchOption.AllDirectories));
             }
 
-            if (candidates.Count == 0)
+            // 2. Also check working directory (portable usage)
+            string localCo2 = Path.GetFullPath("NR0000.co2");
+            bool hasLocal = File.Exists(localCo2);
+
+            if (allCo2.Count == 0 && !hasLocal)
             {
                 if (userClicked)
                     MessageBox.Show(this,
                         "Could not automatically locate NR0000.co2.\n\n" +
-                        "Expected location:\n" + Path.Combine(nrRoaming, "<SteamID64>", "NR0000.co2") + "\n\n" +
-                        "Please use 'Browse...' to select your file manually.",
-                        "Auto-Detect", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        "Expected location:\n  " + Path.Combine(nrRoaming, "<YourSteamID64>", "NR0000.co2") + "\n\n" +
+                        "Please use 'Browse...' to navigate there manually.",
+                        "Auto-Detect Failed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            // Sort: paths with a numeric Steam-ID folder component come first (more likely the real profile)
-            candidates.Sort((a, b) =>
-            {
-                bool aHasSteamId = HasSteamIdComponent(a);
-                bool bHasSteamId = HasSteamIdComponent(b);
-                if (aHasSteamId && !bHasSteamId) return -1;
-                if (!aHasSteamId && bHasSteamId) return 1;
-                return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
-            });
+            // 3. Separate Steam-ID subfolder paths from the root path
+            // The root NR0000.co2 (directly under Nightreign\) is NOT the active save —
+            // the game reads/writes exclusively from the Steam-ID subfolder.
+            var steamIdPaths = new List<string>();
+            var rootPaths    = new List<string>();
 
-            if (candidates.Count == 1)
+            foreach (var p in allCo2)
             {
-                // Only one found — auto-fill it
-                txtFilePath.Text = candidates[0];
+                if (HasSteamIdComponent(p))
+                    steamIdPaths.Add(p);
+                else
+                    rootPaths.Add(p);
+            }
+
+            // Prefer Steam-ID paths; fall back to local only if nothing else found
+            List<string> preferred = steamIdPaths.Count > 0 ? steamIdPaths
+                                   : hasLocal ? new List<string> { localCo2 }
+                                   : rootPaths;
+
+            // Sort by most-recently written (newest first — most likely the active session)
+            preferred.Sort((a, b) => File.GetLastWriteTime(b).CompareTo(File.GetLastWriteTime(a)));
+
+            if (preferred.Count == 1)
+            {
+                // Exactly one Steam-ID save — auto-fill silently
+                txtFilePath.Text = preferred[0];
                 if (userClicked)
-                    MessageBox.Show(this, "Found Nightreign save file:\n" + candidates[0], "Auto-Detect", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
+                    MessageBox.Show(this,
+                        "Save file detected:\n" + preferred[0],
+                        "Auto-Detect", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
-
-            // Multiple candidates — show picker dialog
-            using (var picker = new Form())
+            else
             {
-                picker.Width = 680;
-                picker.Height = 280;
-                picker.FormBorderStyle = FormBorderStyle.FixedDialog;
-                picker.Text = "Multiple Save Files Found";
-                picker.StartPosition = FormStartPosition.CenterParent;
-                picker.BackColor = Color.FromArgb(24, 26, 34);
-                picker.ForeColor = Color.White;
-                picker.MaximizeBox = false;
-                picker.MinimizeBox = false;
-
-                var lblInfo = new Label
+                // Multiple Steam accounts — show picker
+                using (var picker = new Form())
                 {
-                    Text = "Multiple NR0000 save files were found. Select the one for your active Steam account:",
-                    Font = new Font("Segoe UI", 9.5f, FontStyle.Regular),
-                    ForeColor = Color.FromArgb(200, 205, 220),
-                    Location = new Point(16, 14),
-                    Size = new Size(640, 20)
-                };
-                picker.Controls.Add(lblInfo);
+                    picker.Width = 700;
+                    picker.Height = 310;
+                    picker.FormBorderStyle = FormBorderStyle.FixedDialog;
+                    picker.Text = "Select Active Save File";
+                    picker.StartPosition = FormStartPosition.CenterParent;
+                    picker.BackColor = Color.FromArgb(24, 26, 34);
+                    picker.ForeColor = Color.White;
+                    picker.MaximizeBox = false;
+                    picker.MinimizeBox = false;
 
-                var lst = new ListBox
-                {
-                    Location = new Point(16, 40),
-                    Size = new Size(640, 150),
-                    BackColor = Color.FromArgb(32, 36, 48),
-                    ForeColor = Color.White,
-                    Font = new Font("Consolas", 9.5f),
-                    BorderStyle = BorderStyle.FixedSingle
-                };
-                foreach (var c in candidates) lst.Items.Add(c);
-                lst.SelectedIndex = 0; // pre-select Steam-ID one (sorted first)
-                picker.Controls.Add(lst);
+                    var lblInfo = new Label
+                    {
+                        Text = "Multiple save files found. Select the one matching your active Steam account\n(files sorted newest-first — the top entry is most likely the right one):",
+                        Font = new Font("Segoe UI", 9.5f),
+                        ForeColor = Color.FromArgb(200, 205, 220),
+                        Location = new Point(16, 12),
+                        Size = new Size(660, 38)
+                    };
+                    picker.Controls.Add(lblInfo);
 
-                var btnSelect = new Button
-                {
-                    Text = "Use Selected",
-                    Location = new Point(480, 200),
-                    Width = 176,
-                    Height = 32,
-                    BackColor = Color.FromArgb(200, 160, 45),
-                    ForeColor = Color.Black,
-                    Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                    FlatStyle = FlatStyle.Flat,
-                    DialogResult = DialogResult.OK
-                };
-                btnSelect.FlatAppearance.BorderColor = Color.FromArgb(235, 195, 80);
-                picker.Controls.Add(btnSelect);
-                picker.AcceptButton = btnSelect;
+                    var lst = new ListBox
+                    {
+                        Location = new Point(16, 56),
+                        Size = new Size(660, 175),
+                        BackColor = Color.FromArgb(30, 34, 46),
+                        ForeColor = Color.White,
+                        Font = new Font("Consolas", 9.5f),
+                        BorderStyle = BorderStyle.FixedSingle
+                    };
+                    foreach (var c in preferred)
+                    {
+                        string stamp = File.GetLastWriteTime(c).ToString("yyyy-MM-dd HH:mm");
+                        lst.Items.Add(string.Format("[{0}]  {1}", stamp, c));
+                    }
+                    lst.SelectedIndex = 0;
+                    picker.Controls.Add(lst);
 
-                if (picker.ShowDialog(this) == DialogResult.OK && lst.SelectedItem != null)
-                {
-                    txtFilePath.Text = lst.SelectedItem.ToString();
+                    var btnSelect = new Button
+                    {
+                        Text = "Use Selected File",
+                        Location = new Point(500, 242),
+                        Width = 176, Height = 32,
+                        BackColor = Color.FromArgb(200, 160, 45),
+                        ForeColor = Color.Black,
+                        Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                        FlatStyle = FlatStyle.Flat,
+                        DialogResult = DialogResult.OK
+                    };
+                    btnSelect.FlatAppearance.BorderColor = Color.FromArgb(235, 195, 80);
+                    picker.Controls.Add(btnSelect);
+                    picker.AcceptButton = btnSelect;
+
+                    if (picker.ShowDialog(this) == DialogResult.OK && lst.SelectedIndex >= 0)
+                    {
+                        // Extract actual path (strip the [timestamp] prefix we added for display)
+                        string selected = preferred[lst.SelectedIndex];
+                        txtFilePath.Text = selected;
+                    }
                 }
             }
         }
+
 
         // Returns true if the path contains a numeric directory component (Steam ID format: 17-digit number)
         private static bool HasSteamIdComponent(string path)
