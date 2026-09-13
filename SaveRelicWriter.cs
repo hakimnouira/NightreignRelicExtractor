@@ -233,6 +233,30 @@ namespace NightreignRelicExtractor
             return "Vessel " + vesselId;
         }
 
+        /// <summary>
+        /// Finds the exact byte offset in decrypted cleanData of the specified vesselId.
+        /// Returns -1 if the vessel is not found.
+        /// When found at offset p:
+        /// cleanData[p] = vesselId
+        /// cleanData[p + 4] = relic slot 1 (normal slot 1)
+        /// cleanData[p + 8] = relic slot 2 (normal slot 2)
+        /// cleanData[p + 12] = relic slot 3 (normal slot 3)
+        /// </summary>
+        public static int FindVesselRelicOffset(byte[] cleanData, uint vesselId)
+        {
+            if (cleanData == null || vesselId == 0) return -1;
+            // The vessel table begins after the character markers (0x1BDC0) up to 0x1C800
+            for (int p = 0x1BDC0; p < 0x1C800 && p + 16 <= cleanData.Length; p += 4)
+            {
+                if (BitConverter.ToUInt32(cleanData, p) == vesselId)
+                {
+                    return p;
+                }
+            }
+            return -1;
+        }
+
+
         public static VesselDetailInfo ReadCharacterVesselDetail(
             string saveFilePath,
             int charIndex,
@@ -324,59 +348,45 @@ namespace NightreignRelicExtractor
                     info.IsActiveVessel = (vesselTypeIndex == (int)(info.ActiveVesselId % 1000));
                 }
 
-                int vesselOffset = VESSEL_TABLE_START + (charIndex * 7 + vesselTypeIndex) * VESSEL_STRIDE;
-
-                // Verify the vesselId key matches what we expect
-                uint storedVesselId = (vesselOffset + VESSEL_ENTRY_KEY_OFFSET + 4 <= cleanData.Length)
-                    ? BitConverter.ToUInt32(cleanData, vesselOffset + VESSEL_ENTRY_KEY_OFFSET)
-                    : 0;
-                // Expected vesselId = (charIndex+1)*1000 + vesselTypeIndex
                 uint expectedVesselId = (uint)((charIndex + 1) * 1000 + vesselTypeIndex);
+                int vesselOffset = FindVesselRelicOffset(cleanData, expectedVesselId);
 
-                // If key doesn't match, scan the table to find the right entry
-                if (storedVesselId != expectedVesselId && storedVesselId != 0)
+                if (vesselOffset != -1)
                 {
-                    for (int scan = 0; scan < 10 * 7; scan++)
+                    // Read up to VESSEL_RELICS_PER_ENTRY (3) slots from this entry (slots are at offset + 4, + 8, + 12)
+                    for (int s = 0; s < VESSEL_RELICS_PER_ENTRY; s++)
                     {
-                        int scanOff = VESSEL_TABLE_START + scan * VESSEL_STRIDE;
-                        if (scanOff + VESSEL_ENTRY_KEY_OFFSET + 4 > cleanData.Length) break;
-                        uint scanId = BitConverter.ToUInt32(cleanData, scanOff + VESSEL_ENTRY_KEY_OFFSET);
-                        if (scanId == expectedVesselId) { vesselOffset = scanOff; break; }
-                    }
-                }
+                        int slotOff = vesselOffset + 4 + s * 4;
+                        if (slotOff + 4 > cleanData.Length) break;
+                        uint rId = BitConverter.ToUInt32(cleanData, slotOff);
+                        info.Slots[s].RelicId = rId;
 
-                // Read up to VESSEL_RELICS_PER_ENTRY (3) slots from this entry
-                for (int s = 0; s < VESSEL_RELICS_PER_ENTRY; s++)
-                {
-                    int slotOff = vesselOffset + VESSEL_ENTRY_RELIC_OFFSET + s * 4;
-                    if (slotOff + 4 > cleanData.Length) break;
-                    uint rId = BitConverter.ToUInt32(cleanData, slotOff);
-                    info.Slots[s].RelicId = rId;
-
-                    if (rId != 0)
-                    {
-                        Program.RelicEntry rEntry;
-                        if (relicMap.TryGetValue(rId, out rEntry) && rEntry.Item != null)
+                        if (rId != 0)
                         {
-                            info.Slots[s].RelicName = rEntry.Item.NameEn;
-                            info.Slots[s].RelicColor = rEntry.Item.Color;
-                            info.Slots[s].RelicType = rEntry.Item.Type;
-
-                            if (rEntry.EffectIds != null)
+                            Program.RelicEntry rEntry;
+                            if (relicMap.TryGetValue(rId, out rEntry) && rEntry.Item != null)
                             {
-                                foreach (var effId in rEntry.EffectIds)
+                                info.Slots[s].RelicName = rEntry.Item.NameEn;
+                                info.Slots[s].RelicColor = rEntry.Item.Color;
+                                info.Slots[s].RelicType = rEntry.Item.Type;
+
+                                if (rEntry.EffectIds != null)
                                 {
-                                    info.Slots[s].EffectIds.Add(effId);
-                                    info.Slots[s].EffectDescriptions.Add(Program.GetFullEffectDisplay(effId));
+                                    foreach (var effId in rEntry.EffectIds)
+                                    {
+                                        info.Slots[s].EffectIds.Add(effId);
+                                        info.Slots[s].EffectDescriptions.Add(Program.GetFullEffectDisplay(effId));
+                                    }
                                 }
                             }
-                        }
-                        else
-                        {
-                            info.Slots[s].RelicName = string.Format("Relic 0x{0:X8}", rId);
+                            else
+                            {
+                                info.Slots[s].RelicName = string.Format("Relic 0x{0:X8}", rId);
+                            }
                         }
                     }
                 }
+
                 // Slots 4-6 (deep slots, indices 3-5) remain at default "Empty Slot"
                 // as the deep slot data is not stored in this vessel table region
 
@@ -450,24 +460,7 @@ namespace NightreignRelicExtractor
                 if (markerPos != -1)
                 {
                     uint activeVid = BitConverter.ToUInt32(cleanData, markerPos + 4);
-                    int v = (int)(activeVid % 1000);
-                    int vesselOffset = VESSEL_TABLE_START + (c * 7 + v) * VESSEL_STRIDE;
-
-                    // Verify vesselId key in entry matches; scan if not
-                    if (vesselOffset + VESSEL_ENTRY_KEY_OFFSET + 4 <= cleanData.Length)
-                    {
-                        uint storedVid = BitConverter.ToUInt32(cleanData, vesselOffset + VESSEL_ENTRY_KEY_OFFSET);
-                        if (storedVid != activeVid)
-                        {
-                            for (int scan = 0; scan < 10 * 7; scan++)
-                            {
-                                int scanOff = VESSEL_TABLE_START + scan * VESSEL_STRIDE;
-                                if (scanOff + VESSEL_ENTRY_KEY_OFFSET + 4 > cleanData.Length) break;
-                                if (BitConverter.ToUInt32(cleanData, scanOff + VESSEL_ENTRY_KEY_OFFSET) == activeVid)
-                                { vesselOffset = scanOff; break; }
-                            }
-                        }
-                    }
+                    int vesselOffset = FindVesselRelicOffset(cleanData, activeVid);
 
                     var info = new CharacterLoadoutInfo
                     {
@@ -477,12 +470,15 @@ namespace NightreignRelicExtractor
                         ActiveVesselName = GetVesselName(activeVid)
                     };
 
-                    // Only 3 relic slots stored per entry (normal slots)
-                    for (int s = 0; s < VESSEL_RELICS_PER_ENTRY; s++)
+                    if (vesselOffset != -1)
                     {
-                        int slotOff = vesselOffset + VESSEL_ENTRY_RELIC_OFFSET + s * 4;
-                        if (slotOff + 4 > cleanData.Length) break;
-                        uint rId = BitConverter.ToUInt32(cleanData, slotOff);
+                        // Only 3 relic slots stored per entry (normal slots at offset + 4, + 8, + 12)
+                        for (int s = 0; s < VESSEL_RELICS_PER_ENTRY; s++)
+                        {
+                            int slotOff = vesselOffset + 4 + s * 4;
+                            if (slotOff + 4 > cleanData.Length) break;
+                            uint rId = BitConverter.ToUInt32(cleanData, slotOff);
+
                         if (rId != 0)
                         {
                             info.EquippedRelicIds.Add(rId);
@@ -501,10 +497,12 @@ namespace NightreignRelicExtractor
                             info.EquippedRelicColors.Add(itemColor);
                         }
                     }
-
-                    list.Add(info);
                 }
+
+                list.Add(info);
             }
+        }
+
 
             return list;
         }
@@ -584,26 +582,11 @@ namespace NightreignRelicExtractor
                 BitConverter.GetBytes(targetVesselId).CopyTo(cleanData, markerPos + 4);
             }
 
-            int vesselTypeIndex = (int)(targetVesselId % 1000);
-            int vesselOffset = VESSEL_TABLE_START + (charIndex * 7 + vesselTypeIndex) * VESSEL_STRIDE;
+            int vesselOffset = FindVesselRelicOffset(cleanData, targetVesselId);
+            if (vesselOffset == -1)
+                throw new InvalidDataException("Vessel " + targetVesselId + " not found in save file table.");
 
-            // Verify the vesselId key in this entry; scan if needed
-            if (vesselOffset + VESSEL_ENTRY_KEY_OFFSET + 4 <= cleanData.Length)
-            {
-                uint storedVid = BitConverter.ToUInt32(cleanData, vesselOffset + VESSEL_ENTRY_KEY_OFFSET);
-                if (storedVid != targetVesselId)
-                {
-                    for (int scan = 0; scan < 10 * 7; scan++)
-                    {
-                        int scanOff = VESSEL_TABLE_START + scan * VESSEL_STRIDE;
-                        if (scanOff + VESSEL_ENTRY_KEY_OFFSET + 4 > cleanData.Length) break;
-                        if (BitConverter.ToUInt32(cleanData, scanOff + VESSEL_ENTRY_KEY_OFFSET) == targetVesselId)
-                        { vesselOffset = scanOff; break; }
-                    }
-                }
-            }
-
-            // 4. Write up to 3 relic slots (the save only stores 3 normal slots per vessel entry)
+            // 4. Write up to 3 relic slots (the save stores 3 normal slots at vesselOffset + 4, + 8, + 12)
             for (int s = 0; s < VESSEL_RELICS_PER_ENTRY; s++)
             {
                 uint rId = 0;
@@ -611,15 +594,27 @@ namespace NightreignRelicExtractor
                 {
                     rId = preset.RelicIds[s];
                 }
-                int slotOff = vesselOffset + VESSEL_ENTRY_RELIC_OFFSET + s * 4;
+                int slotOff = vesselOffset + 4 + s * 4;
                 BitConverter.GetBytes(rId).CopyTo(cleanData, slotOff);
             }
-
 
             // 5. Copy cleanData back to dec
             cleanData.CopyTo(dec, 4);
 
+            // CRITICAL: Recompute MD5 checksum over dec[4 .. 0x100004] (1,048,576 bytes)
+            // and write the 16-byte hash to dec[0x100004 .. 0x100014].
+            // Nightreign/Elden Ring rejects any save slot whose checksum does not match!
+            if (dec.Length >= 0x100014)
+            {
+                using (var md5 = MD5.Create())
+                {
+                    byte[] hash = md5.ComputeHash(dec, 4, 0x100000);
+                    Array.Copy(hash, 0, dec, 0x100004, 16);
+                }
+            }
+
             // 6. Re-encrypt with AES-128-CBC
+
             byte[] reEnc;
             using (var aes = new RijndaelManaged())
             {
