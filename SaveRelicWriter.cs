@@ -247,8 +247,8 @@ namespace NightreignRelicExtractor
         public static int FindVesselRelicOffset(byte[] cleanData, uint vesselId)
         {
             if (cleanData == null || vesselId == 0) return -1;
-            // The vessel table begins after the character markers (0x1BDC0) up to 0x1C800
-            for (int p = 0x1BDC0; p < 0x1C800 && p + 16 <= cleanData.Length; p += 4)
+            // Scan vessel table area across save progressions
+            for (int p = 0x1A000; p < 0x24000 && p + 16 <= cleanData.Length; p += 4)
             {
                 if (BitConverter.ToUInt32(cleanData, p) == vesselId)
                 {
@@ -450,7 +450,7 @@ namespace NightreignRelicExtractor
             {
                 uint marker = 0x0000FF01 + (uint)c;
                 int markerPos = -1;
-                for (int p = 0x1B800; p < 0x1BE00; p += 4)
+                for (int p = 0x18000; p < 0x22000 && p + 8 <= cleanData.Length; p += 4)
                 {
                     if (BitConverter.ToUInt32(cleanData, p) == marker)
                     {
@@ -623,7 +623,7 @@ namespace NightreignRelicExtractor
 
             uint marker = 0x0000FF01 + (uint)charIndex;
             int markerPos = -1;
-            for (int p = 0x1B800; p < 0x1BE00; p += 4)
+            for (int p = 0x18000; p < 0x22000 && p + 8 <= cleanData.Length; p += 4)
             {
                 if (BitConverter.ToUInt32(cleanData, p) == marker)
                 {
@@ -759,13 +759,27 @@ namespace NightreignRelicExtractor
                 string nrRoaming = Path.Combine(appData, "Nightreign");
                 if (Directory.Exists(nrRoaming))
                 {
-                    var files = Directory.GetFiles(nrRoaming, "NR0000.co2", SearchOption.AllDirectories);
-                    foreach (var f in files)
+                    var all = new List<string>();
+                    all.AddRange(Directory.GetFiles(nrRoaming, "NR0000.co2", SearchOption.AllDirectories));
+                    if (all.Count == 0)
+                        all.AddRange(Directory.GetFiles(nrRoaming, "NR0000.sl2", SearchOption.AllDirectories));
+
+                    var steamIdFiles = new List<string>();
+                    foreach (var f in all)
                     {
                         string dir = Path.GetFileName(Path.GetDirectoryName(f));
-                        if (dir.Length >= 16) return f;
+                        if (dir.Length >= 15) steamIdFiles.Add(f);
                     }
-                    if (files.Length > 0) return files[0];
+
+                    var candidates = steamIdFiles.Count > 0 ? steamIdFiles : all;
+                    if (candidates.Count > 0)
+                    {
+                        candidates.Sort(delegate (string a, string b)
+                        {
+                            return File.GetLastWriteTime(b).CompareTo(File.GetLastWriteTime(a));
+                        });
+                        return candidates[0];
+                    }
                 }
             }
             catch { }
