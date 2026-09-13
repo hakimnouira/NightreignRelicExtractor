@@ -8,11 +8,37 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](#)
 [![Mode](https://img.shields.io/badge/Mode-Strict_Read--Only-brightgreen)](#)
 
-A fast, lightweight, and completely standalone Windows tool whose sole purpose is to extract your relic inventory from an **Elden Ring Nightreign** `.co2` or `.sl2` save file directly into **CSV** and **Excel (.xlsx)** — with a built-in **AI Build Optimizer Prompt** to generate custom builds in ChatGPT, Claude, or Gemini!
+A fast, lightweight, and completely standalone Windows tool for **Elden Ring Nightreign** that provides:
+1. **In-Game HUD Overlay & Loadout Switcher (F10)**: Swap 6-relic vessel builds with 1 click while playing in-game (fullscreen / borderless). **Other multiplayer co-op players do NOT need to install anything!**
+2. **Relic Inventory Extractor**: Extracts your full relic inventory from `.co2` / `.sl2` save files directly into **CSV** and **Excel (.xlsx)**.
+3. **AI Build Optimizer Prompt**: 1-click copyable expert prompt to generate customized top-tier builds in ChatGPT, Claude, or Gemini!
 
 ---
 
-![Nightreign Relic Extractor Screenshot](assets/screenshot.png)
+### In-Game Overlay & Main Interface
+
+| In-Game HUD Overlay (Hotkey: `F10`) | Main Extractor & Presets Interface |
+|:---:|:---:|
+| ![In-Game Overlay](assets/screenshot_overlay.png) | ![Main Window](assets/screenshot.png) |
+
+---
+
+## 🎮 In-Game Overlay & Loadout Switcher (Hotkey: `F10`)
+
+Switching relics has never been easier — and works seamlessly with mods like **MMV (More Map Variations)** and **Seamless Co-Op**:
+
+### Why Other Players Don't Need Any Mod:
+In FromSoftware multiplayer netcode, your client broadcasts your equipped vanilla relic IDs to other players. Because their game already has the vanilla data, their client natively displays and calculates your relics without needing any third-party app installed!
+
+### How to Use the In-Game Overlay:
+1. Launch **`NightreignRelicExtractor.exe`** before or while running the game.
+2. In-game (Fullscreen or Borderless Windowed), press **`F10`** anytime to toggle the dark HUD overlay.
+3. Select your character (e.g. *Wylder*, *Guardian*, *Duchess*, *Recluse*).
+4. Click **`⚡ Apply`** next to your desired loadout preset:
+   - The app instantly modifies the save file and creates an automatic timestamped backup (`.bak`).
+5. **Quit to the Main Menu and click 'Continue' or 'Load Game'** (~5 seconds).
+6. You spawn back into the session with your new relic loadout active and synced with everyone!
+7. **Create New Builds**: Click **`💾 Snapshot Current Relics`** anytime to capture whatever you currently have equipped in-game directly into a saved preset!
 
 ---
 
@@ -22,8 +48,7 @@ You do **not** need to install Python, Node.js, or any package managers. The pro
 
 1. **[Click here to download NightreignRelicExtractor.exe](https://github.com/hakimnouira/NightreignRelicExtractor/raw/main/NightreignRelicExtractor.exe)** (or visit [Releases](https://github.com/hakimnouira/NightreignRelicExtractor/releases)).
 2. Double-click **`NightreignRelicExtractor.exe`** to open the interface.
-3. Click **Auto-Detect** (or **Browse...** to pick your `NR0000.co2`), then click **Extract Relics**.
-4. That's it! Your `relics.xlsx` and `relics.csv` files will appear immediately.
+3. Click **Auto-Detect** (or **Browse...** to pick your `NR0000.co2`), then click **Extract Relics** or switch to the **Loadouts & Overlay** tab.
 
 ---
 
@@ -119,7 +144,7 @@ To rebuild `NightreignRelicExtractor.exe`:
 - Double-click **`build.bat`**, or
 - Run the following command from PowerShell:
 ```powershell
-& "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /codepage:65001 /utf8output /optimize+ /target:exe /out:NightreignRelicExtractor.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll /r:System.Web.Extensions.dll /res:items_data.json,items_data.json /res:effects_data.json,effects_data.json NightreignRelicExtractor.cs
+& "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /codepage:65001 /utf8output /optimize+ /target:exe /out:NightreignRelicExtractor.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll /r:System.Web.Extensions.dll /res:items_data.json,items_data.json /res:effects_data.json,effects_data.json NightreignRelicExtractor.cs PresetManager.cs SaveRelicWriter.cs OverlayForm.cs
 ```
 
 ---

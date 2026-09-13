@@ -10,6 +10,9 @@ relics.xlsx
 *.pdb
 *.obj
 *.log
+*.bak*
+*.tmp
+presets.json
 .vs/
 bin/
 obj/

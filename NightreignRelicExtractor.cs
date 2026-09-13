@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.IO.Compression;
+using System.Media;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -14,7 +15,7 @@ using System.Windows.Forms;
 
 namespace NightreignRelicExtractor
 {
-    static class Program
+    public static class Program
     {
         [DllImport("kernel32.dll")]
         static extern IntPtr GetConsoleWindow();
@@ -184,6 +185,20 @@ Please review the attached spreadsheet and generate my builds!";
                 return 0;
             }
 
+            if (args.Length > 0 && args[0].Equals("--screenshot-overlay", StringComparison.OrdinalIgnoreCase))
+            {
+                string shotPath = args.Length > 1 ? args[1] : "assets/screenshot_overlay.png";
+                TakeOverlayScreenshot(shotPath);
+                return 0;
+            }
+
+            if (args.Length > 0 && args[0].Equals("--screenshot-loadouts", StringComparison.OrdinalIgnoreCase))
+            {
+                string shotPath = args.Length > 1 ? args[1] : "assets/screenshot_loadouts.png";
+                TakeLoadoutsScreenshot(shotPath);
+                return 0;
+            }
+
             // If arguments provided and not explicitly requesting GUI, run in CLI mode
             if (args.Length > 0 && !args[0].Equals("--gui", StringComparison.OrdinalIgnoreCase))
             {
@@ -211,6 +226,54 @@ Please review the attached spreadsheet and generate my builds!";
             {
                 form.Show();
                 form.TriggerExtraction();
+                Application.DoEvents();
+                System.Threading.Thread.Sleep(500);
+                Application.DoEvents();
+
+                using (var bmp = new Bitmap(form.Width, form.Height))
+                {
+                    form.DrawToBitmap(bmp, new Rectangle(0, 0, form.Width, form.Height));
+                    string dir = Path.GetDirectoryName(outputPath);
+                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                    bmp.Save(outputPath, System.Drawing.Imaging.ImageFormat.Png);
+                }
+                form.Close();
+            }
+        }
+
+        private static void TakeOverlayScreenshot(string outputPath)
+        {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            EnsureDatabasesLoaded();
+            string savePath = File.Exists("NR0000.co2") ? Path.GetFullPath("NR0000.co2") : "";
+            using (var form = new OverlayForm(savePath))
+            {
+                form.Show();
+                Application.DoEvents();
+                System.Threading.Thread.Sleep(500);
+                Application.DoEvents();
+
+                using (var bmp = new Bitmap(form.Width, form.Height))
+                {
+                    form.DrawToBitmap(bmp, new Rectangle(0, 0, form.Width, form.Height));
+                    string dir = Path.GetDirectoryName(outputPath);
+                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                    bmp.Save(outputPath, System.Drawing.Imaging.ImageFormat.Png);
+                }
+                form.Close();
+            }
+        }
+
+        private static void TakeLoadoutsScreenshot(string outputPath)
+        {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            EnsureDatabasesLoaded();
+            using (var form = new MainForm())
+            {
+                form.Show();
+                form.ShowTabPublic(false);
                 Application.DoEvents();
                 System.Threading.Thread.Sleep(500);
                 Application.DoEvents();
@@ -454,7 +517,7 @@ Please review the attached spreadsheet and generate my builds!";
             return cleanData;
         }
 
-        private static List<RelicEntry> ExtractRelics(byte[] cleanData, Dictionary<int, ItemInfo> itemsDb)
+        public static List<RelicEntry> ExtractRelics(byte[] cleanData, Dictionary<int, ItemInfo> itemsDb)
         {
             var potentialSlots = new List<RelicEntry>();
 
@@ -843,6 +906,16 @@ Please review the attached spreadsheet and generate my builds!";
 
     public class MainForm : Form
     {
+        [DllImport("user32.dll")]
+        static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
+
+        [DllImport("user32.dll")]
+        static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+        const int HOTKEY_ID = 9001;
+        const int WM_HOTKEY = 0x0312;
+        const int VK_F10 = 0x79;
+
         private TextBox txtFilePath;
         private Button btnBrowse;
         private Button btnAutoDetect;
@@ -854,27 +927,91 @@ Please review the attached spreadsheet and generate my builds!";
         private Button btnCopyAiPrompt;
         private Label lblStatus;
 
+        private Button btnNavExtract;
+        private Button btnNavOverlay;
+        private Button btnQuickOverlay;
+        private Panel pnlExtractView;
+        private Panel pnlOverlayView;
+
+        // Overlay & Presets tab controls
+        private ComboBox cmbMainCharFilter;
+        private CheckBox chkEnableHotkey;
+        private FlowLayoutPanel pnlMainPresetCards;
+        private Button btnMainSnapshot;
+        private Button btnMainOpenOverlay;
+        private Label lblOverlayStatus;
+
+        private OverlayForm overlayForm = null;
         private Program.ExtractionResult lastResult = null;
 
         public MainForm()
         {
-            InitializeComponent();
             Program.EnsureDatabasesLoaded();
+            InitializeComponent();
             TryAutoDetectFile();
+            AutoSeedDefaultPresets();
+            RefreshMainPresets();
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            try
+            {
+                RegisterHotKey(this.Handle, HOTKEY_ID, 0, VK_F10);
+            }
+            catch { }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            try
+            {
+                UnregisterHotKey(this.Handle, HOTKEY_ID);
+            }
+            catch { }
+
+            if (overlayForm != null && !overlayForm.IsDisposed)
+            {
+                overlayForm.Dispose();
+            }
+            base.OnFormClosing(e);
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WM_HOTKEY && m.WParam.ToInt32() == HOTKEY_ID)
+            {
+                if (chkEnableHotkey == null || chkEnableHotkey.Checked)
+                {
+                    ToggleOverlay();
+                    return;
+                }
+            }
+            base.WndProc(ref m);
+        }
+
+        public void ToggleOverlay()
+        {
+            string savePath = txtFilePath != null ? txtFilePath.Text.Trim('"', '\'') : "";
+            if (overlayForm == null || overlayForm.IsDisposed)
+            {
+                overlayForm = new OverlayForm(savePath);
+            }
+            overlayForm.ToggleOverlay(savePath);
         }
 
         private void InitializeComponent()
         {
-            this.Text = "Nightreign Relic Extractor";
-            this.Size = new Size(680, 520);
-            this.MinimumSize = new Size(680, 520);
+            this.Text = "Nightreign Relic Extractor & Loadout Switcher";
+            this.Size = new Size(740, 600);
+            this.MinimumSize = new Size(740, 600);
             this.StartPosition = FormStartPosition.CenterScreen;
-            this.BackColor = Color.FromArgb(24, 26, 32);
+            this.BackColor = Color.FromArgb(20, 22, 28);
             this.ForeColor = Color.FromArgb(235, 238, 245);
             this.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
             this.AllowDrop = true;
 
-            // Drag and drop anywhere on the form
             this.DragEnter += Form_DragEnter;
             this.DragDrop += Form_DragDrop;
 
@@ -882,155 +1019,252 @@ Please review the attached spreadsheet and generate my builds!";
             Panel pnlHeader = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 70,
-                BackColor = Color.FromArgb(18, 20, 26),
-                Padding = new Padding(20, 12, 20, 10)
+                Height = 68,
+                BackColor = Color.FromArgb(16, 18, 24),
+                Padding = new Padding(18, 10, 18, 10)
             };
 
             Label lblTitle = new Label
             {
-                Text = "Nightreign Relic Extractor",
-                Font = new Font("Segoe UI", 15f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(212, 175, 55), // Golden Elden accent
+                Text = "Nightreign Relic Extractor & Loadout Switcher",
+                Font = new Font("Segoe UI", 14f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(212, 175, 55),
                 AutoSize = true,
-                Location = new Point(18, 10)
+                Location = new Point(16, 10)
             };
 
             Label lblSub = new Label
             {
-                Text = "Extract complete relic inventory from .co2 save file to CSV and Excel (Strict Read-Only)",
+                Text = "Extract relics, manage vessel presets, and hotkey switch builds in-game (F10 Overlay)",
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
                 ForeColor = Color.FromArgb(160, 165, 180),
                 AutoSize = true,
-                Location = new Point(20, 38)
+                Location = new Point(18, 36)
             };
+
+            btnQuickOverlay = new Button
+            {
+                Text = "🎮 In-Game Overlay (F10)",
+                Location = new Point(515, 14),
+                Width = 195,
+                Height = 38,
+                BackColor = Color.FromArgb(40, 58, 85),
+                ForeColor = Color.FromArgb(190, 225, 255),
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+            btnQuickOverlay.FlatAppearance.BorderColor = Color.FromArgb(70, 110, 165);
+            btnQuickOverlay.Click += (s, e) => ToggleOverlay();
 
             pnlHeader.Controls.Add(lblTitle);
             pnlHeader.Controls.Add(lblSub);
-            this.Controls.Add(pnlHeader);
+            pnlHeader.Controls.Add(btnQuickOverlay);
 
-            // File selection group
+            // Tab Navigation Bar
+            Panel pnlNav = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 38,
+                BackColor = Color.FromArgb(24, 27, 35)
+            };
+
+            btnNavExtract = new Button
+            {
+                Text = "📥 Relic Extractor & AI Prompt",
+                Location = new Point(0, 0),
+                Width = 220,
+                Height = 38,
+                BackColor = Color.FromArgb(34, 38, 50),
+                ForeColor = Color.FromArgb(220, 185, 65),
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+            btnNavExtract.FlatAppearance.BorderSize = 0;
+            btnNavExtract.Click += (s, e) => ShowTab(true);
+
+            btnNavOverlay = new Button
+            {
+                Text = "⚔️ Loadouts & In-Game Overlay",
+                Location = new Point(220, 0),
+                Width = 230,
+                Height = 38,
+                BackColor = Color.FromArgb(24, 27, 35),
+                ForeColor = Color.FromArgb(170, 175, 190),
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+            btnNavOverlay.FlatAppearance.BorderSize = 0;
+            btnNavOverlay.Click += (s, e) => ShowTab(false);
+
+            pnlNav.Controls.Add(btnNavExtract);
+            pnlNav.Controls.Add(btnNavOverlay);
+
+            // Common Save File Selection Bar
+            Panel pnlFileBar = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 58,
+                BackColor = Color.FromArgb(20, 23, 30),
+                Padding = new Padding(18, 6, 18, 6)
+            };
+
             Label lblFilePrompt = new Label
             {
-                Text = "Select Nightreign Save File (NR0000.co2 / NR0000.sl2):",
-                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(220, 225, 235),
+                Text = "Nightreign Save File (NR0000.co2):",
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(200, 205, 220),
                 AutoSize = true,
-                Location = new Point(20, 85)
+                Location = new Point(16, 6)
             };
-            this.Controls.Add(lblFilePrompt);
-            lblFilePrompt.BringToFront();
+            pnlFileBar.Controls.Add(lblFilePrompt);
 
             txtFilePath = new TextBox
             {
-                Location = new Point(20, 110),
-                Width = 425,
-                Height = 28,
-                BackColor = Color.FromArgb(34, 37, 46),
+                Location = new Point(18, 26),
+                Width = 490,
+                Height = 26,
+                BackColor = Color.FromArgb(32, 36, 46),
                 ForeColor = Color.FromArgb(240, 240, 240),
                 BorderStyle = BorderStyle.FixedSingle,
                 Font = new Font("Segoe UI", 9.5f)
             };
-            this.Controls.Add(txtFilePath);
-            txtFilePath.BringToFront();
+            txtFilePath.TextChanged += (s, e) =>
+            {
+                if (overlayForm != null && !overlayForm.IsDisposed)
+                {
+                    overlayForm.UpdateSavePath(txtFilePath.Text.Trim('"', '\''));
+                }
+            };
+            pnlFileBar.Controls.Add(txtFilePath);
 
             btnBrowse = new Button
             {
                 Text = "Browse...",
-                Location = new Point(455, 109),
-                Width = 85,
-                Height = 29,
-                BackColor = Color.FromArgb(45, 50, 62),
+                Location = new Point(515, 25),
+                Width = 90,
+                Height = 27,
+                BackColor = Color.FromArgb(42, 47, 60),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
                 Cursor = Cursors.Hand
             };
             btnBrowse.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 90);
             btnBrowse.Click += BtnBrowse_Click;
-            this.Controls.Add(btnBrowse);
-            btnBrowse.BringToFront();
+            pnlFileBar.Controls.Add(btnBrowse);
 
             btnAutoDetect = new Button
             {
                 Text = "Auto-Detect",
-                Location = new Point(547, 109),
+                Location = new Point(610, 25),
                 Width = 100,
-                Height = 29,
-                BackColor = Color.FromArgb(45, 50, 62),
+                Height = 27,
+                BackColor = Color.FromArgb(42, 47, 60),
                 ForeColor = Color.FromArgb(175, 195, 255),
                 FlatStyle = FlatStyle.Flat,
                 Cursor = Cursors.Hand
             };
             btnAutoDetect.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 90);
-            btnAutoDetect.Click += (s, e) => { TryAutoDetectFile(true); };
-            this.Controls.Add(btnAutoDetect);
-            btnAutoDetect.BringToFront();
+            btnAutoDetect.Click += (s, e) => { TryAutoDetectFile(true); AutoSeedDefaultPresets(); RefreshMainPresets(); };
+            pnlFileBar.Controls.Add(btnAutoDetect);
 
-            Label lblDragHint = new Label
+            // Create Tab View Containers
+            InitializeExtractView();
+            InitializeOverlayView();
+
+            this.Controls.Add(pnlExtractView);
+            this.Controls.Add(pnlOverlayView);
+            this.Controls.Add(pnlNav);
+            this.Controls.Add(pnlFileBar);
+            this.Controls.Add(pnlHeader);
+
+            // Default to Extract view
+            ShowTab(true);
+        }
+
+        private void ShowTab(bool showExtract)
+        {
+            if (showExtract)
             {
-                Text = "Tip: You can also drag and drop your NR0000.co2 file directly onto this window.",
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Italic),
-                ForeColor = Color.FromArgb(140, 145, 160),
-                AutoSize = true,
-                Location = new Point(20, 143)
-            };
-            this.Controls.Add(lblDragHint);
-            lblDragHint.BringToFront();
+                btnNavExtract.BackColor = Color.FromArgb(34, 38, 50);
+                btnNavExtract.ForeColor = Color.FromArgb(220, 185, 65);
+                btnNavOverlay.BackColor = Color.FromArgb(24, 27, 35);
+                btnNavOverlay.ForeColor = Color.FromArgb(170, 175, 190);
+                pnlExtractView.Visible = true;
+                pnlOverlayView.Visible = false;
+                pnlExtractView.BringToFront();
+            }
+            else
+            {
+                btnNavExtract.BackColor = Color.FromArgb(24, 27, 35);
+                btnNavExtract.ForeColor = Color.FromArgb(170, 175, 190);
+                btnNavOverlay.BackColor = Color.FromArgb(34, 38, 50);
+                btnNavOverlay.ForeColor = Color.FromArgb(220, 185, 65);
+                pnlExtractView.Visible = false;
+                pnlOverlayView.Visible = true;
+                pnlOverlayView.BringToFront();
+                RefreshMainPresets();
+            }
+        }
 
-            // Extract Action Button
+        private void InitializeExtractView()
+        {
+            pnlExtractView = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(20, 22, 28),
+                Padding = new Padding(18, 8, 18, 10)
+            };
+
             btnExtract = new Button
             {
                 Text = "Extract Relics",
-                Location = new Point(20, 172),
-                Width = 627,
-                Height = 42,
-                BackColor = Color.FromArgb(200, 160, 45), // Golden Elden Ring button
+                Location = new Point(18, 8),
+                Width = 692,
+                Height = 38,
+                BackColor = Color.FromArgb(200, 160, 45),
                 ForeColor = Color.FromArgb(15, 15, 20),
-                Font = new Font("Segoe UI", 11f, FontStyle.Bold),
+                Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
                 Cursor = Cursors.Hand
             };
             btnExtract.FlatAppearance.BorderColor = Color.FromArgb(235, 195, 80);
             btnExtract.Click += BtnExtract_Click;
-            this.Controls.Add(btnExtract);
-            btnExtract.BringToFront();
+            pnlExtractView.Controls.Add(btnExtract);
 
-            // Status label
             lblStatus = new Label
             {
                 Text = "Ready. Select a save file and click 'Extract Relics'.",
                 Font = new Font("Segoe UI", 9f, FontStyle.Regular),
                 ForeColor = Color.FromArgb(150, 220, 150),
                 AutoSize = true,
-                Location = new Point(20, 222)
+                Location = new Point(18, 52)
             };
-            this.Controls.Add(lblStatus);
-            lblStatus.BringToFront();
+            pnlExtractView.Controls.Add(lblStatus);
 
-            // Result Log Box
             txtResult = new TextBox
             {
-                Location = new Point(20, 245),
-                Width = 627,
-                Height = 160,
+                Location = new Point(18, 74),
+                Width = 692,
+                Height = 270,
                 Multiline = true,
                 ReadOnly = true,
                 ScrollBars = ScrollBars.Vertical,
-                BackColor = Color.FromArgb(15, 17, 22),
+                BackColor = Color.FromArgb(14, 16, 21),
                 ForeColor = Color.FromArgb(225, 230, 240),
-                Font = new Font("Consolas", 10f),
+                Font = new Font("Consolas", 9.5f),
                 BorderStyle = BorderStyle.FixedSingle
             };
-            this.Controls.Add(txtResult);
-            txtResult.BringToFront();
+            pnlExtractView.Controls.Add(txtResult);
 
-            // Action Buttons Panel
             btnOpenCsv = new Button
             {
                 Text = "Open CSV",
-                Location = new Point(20, 418),
-                Width = 95,
-                Height = 34,
+                Location = new Point(18, 354),
+                Width = 100,
+                Height = 32,
                 BackColor = Color.FromArgb(40, 45, 55),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
@@ -1039,15 +1273,14 @@ Please review the attached spreadsheet and generate my builds!";
             };
             btnOpenCsv.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 90);
             btnOpenCsv.Click += (s, e) => { if (lastResult != null && File.Exists(lastResult.CsvPath)) Process.Start(lastResult.CsvPath); };
-            this.Controls.Add(btnOpenCsv);
-            btnOpenCsv.BringToFront();
+            pnlExtractView.Controls.Add(btnOpenCsv);
 
             btnOpenExcel = new Button
             {
                 Text = "Open Excel",
-                Location = new Point(122, 418),
-                Width = 95,
-                Height = 34,
+                Location = new Point(125, 354),
+                Width = 105,
+                Height = 32,
                 BackColor = Color.FromArgb(40, 45, 55),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
@@ -1056,15 +1289,14 @@ Please review the attached spreadsheet and generate my builds!";
             };
             btnOpenExcel.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 90);
             btnOpenExcel.Click += (s, e) => { if (lastResult != null && File.Exists(lastResult.XlsxPath)) Process.Start(lastResult.XlsxPath); };
-            this.Controls.Add(btnOpenExcel);
-            btnOpenExcel.BringToFront();
+            pnlExtractView.Controls.Add(btnOpenExcel);
 
             btnOpenFolder = new Button
             {
-                Text = "Open Output Folder",
-                Location = new Point(224, 418),
-                Width = 145,
-                Height = 34,
+                Text = "Open Folder",
+                Location = new Point(237, 354),
+                Width = 115,
+                Height = 32,
                 BackColor = Color.FromArgb(40, 45, 55),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
@@ -1073,15 +1305,14 @@ Please review the attached spreadsheet and generate my builds!";
             };
             btnOpenFolder.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 90);
             btnOpenFolder.Click += (s, e) => { if (lastResult != null && Directory.Exists(lastResult.SaveDirectory)) Process.Start("explorer.exe", lastResult.SaveDirectory); };
-            this.Controls.Add(btnOpenFolder);
-            btnOpenFolder.BringToFront();
+            pnlExtractView.Controls.Add(btnOpenFolder);
 
             btnCopyAiPrompt = new Button
             {
                 Text = "📋 Copy AI Build Prompt",
-                Location = new Point(377, 418),
-                Width = 270,
-                Height = 34,
+                Location = new Point(360, 354),
+                Width = 350,
+                Height = 32,
                 BackColor = Color.FromArgb(35, 52, 75),
                 ForeColor = Color.FromArgb(170, 215, 255),
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
@@ -1103,8 +1334,405 @@ Please review the attached spreadsheet and generate my builds!";
                     MessageBox.Show(this, "Failed to copy to clipboard: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             };
-            this.Controls.Add(btnCopyAiPrompt);
-            btnCopyAiPrompt.BringToFront();
+            pnlExtractView.Controls.Add(btnCopyAiPrompt);
+        }
+
+        private void InitializeOverlayView()
+        {
+            pnlOverlayView = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(20, 22, 28),
+                Padding = new Padding(18, 6, 18, 10),
+                Visible = false
+            };
+
+            // Instruction Banner
+            Panel pnlInfo = new Panel
+            {
+                Location = new Point(18, 6),
+                Width = 692,
+                Height = 65,
+                BackColor = Color.FromArgb(26, 32, 44),
+                Padding = new Padding(12, 6, 12, 6)
+            };
+
+            Label lblInfoTitle = new Label
+            {
+                Text = "⚡ SAVE-FILE LOADOUT PRESETS & IN-GAME OVERLAY",
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(220, 185, 65),
+                AutoSize = true,
+                Location = new Point(10, 6)
+            };
+            pnlInfo.Controls.Add(lblInfoTitle);
+
+            Label lblInfoBody = new Label
+            {
+                Text = "1. Press F10 in-game to toggle HUD overlay.  2. Click 'Apply' to swap relics in save.\n3. Quit to Main Menu and click 'Continue' to reload. (Other co-op players do NOT need this mod installed!)",
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
+                ForeColor = Color.FromArgb(195, 205, 225),
+                AutoSize = true,
+                Location = new Point(10, 26)
+            };
+            pnlInfo.Controls.Add(lblInfoBody);
+            pnlOverlayView.Controls.Add(pnlInfo);
+
+            // Controls Bar
+            Panel pnlBar = new Panel
+            {
+                Location = new Point(18, 77),
+                Width = 692,
+                Height = 36,
+                BackColor = Color.FromArgb(16, 18, 24)
+            };
+
+            chkEnableHotkey = new CheckBox
+            {
+                Text = "Enable F10 Hotkey",
+                Checked = true,
+                ForeColor = Color.FromArgb(100, 220, 140),
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                Location = new Point(10, 6),
+                Width = 145,
+                Cursor = Cursors.Hand
+            };
+            pnlBar.Controls.Add(chkEnableHotkey);
+
+            Label lblFilter = new Label
+            {
+                Text = "Filter:",
+                ForeColor = Color.FromArgb(170, 175, 190),
+                Location = new Point(160, 8),
+                AutoSize = true
+            };
+            pnlBar.Controls.Add(lblFilter);
+
+            cmbMainCharFilter = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Location = new Point(202, 5),
+                Width = 135,
+                BackColor = Color.FromArgb(34, 38, 50),
+                ForeColor = Color.White
+            };
+            cmbMainCharFilter.Items.Add("All");
+            foreach (var ch in SaveRelicWriter.CHARACTERS)
+            {
+                cmbMainCharFilter.Items.Add(ch);
+            }
+            cmbMainCharFilter.SelectedIndex = 0;
+            cmbMainCharFilter.SelectedIndexChanged += (s, e) => RefreshMainPresets();
+            pnlBar.Controls.Add(cmbMainCharFilter);
+
+            btnMainSnapshot = new Button
+            {
+                Text = "💾 Snapshot Current Relics",
+                Location = new Point(345, 4),
+                Width = 180,
+                Height = 28,
+                BackColor = Color.FromArgb(35, 55, 80),
+                ForeColor = Color.FromArgb(180, 220, 255),
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+            btnMainSnapshot.FlatAppearance.BorderColor = Color.FromArgb(60, 95, 140);
+            btnMainSnapshot.Click += BtnMainSnapshot_Click;
+            pnlBar.Controls.Add(btnMainSnapshot);
+
+            btnMainOpenOverlay = new Button
+            {
+                Text = "🎮 Open Overlay (F10)",
+                Location = new Point(532, 4),
+                Width = 150,
+                Height = 28,
+                BackColor = Color.FromArgb(200, 160, 45),
+                ForeColor = Color.FromArgb(15, 15, 20),
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+            btnMainOpenOverlay.FlatAppearance.BorderColor = Color.FromArgb(235, 195, 80);
+            btnMainOpenOverlay.Click += (s, e) => ToggleOverlay();
+            pnlBar.Controls.Add(btnMainOpenOverlay);
+
+            pnlOverlayView.Controls.Add(pnlBar);
+
+            // Presets Cards Container
+            pnlMainPresetCards = new FlowLayoutPanel
+            {
+                Location = new Point(18, 120),
+                Width = 692,
+                Height = 245,
+                AutoScroll = true,
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
+                BackColor = Color.FromArgb(14, 16, 21),
+                Padding = new Padding(8)
+            };
+            pnlOverlayView.Controls.Add(pnlMainPresetCards);
+
+            lblOverlayStatus = new Label
+            {
+                Text = "Global Hotkey F10 active. You can toggle the overlay anytime while playing!",
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Italic),
+                ForeColor = Color.FromArgb(150, 210, 150),
+                Location = new Point(18, 372),
+                AutoSize = true
+            };
+            pnlOverlayView.Controls.Add(lblOverlayStatus);
+        }
+
+        private void AutoSeedDefaultPresets()
+        {
+            try
+            {
+                var existing = PresetManager.LoadPresets();
+                if (existing.Count > 0) return;
+
+                string path = txtFilePath.Text.Trim('"', '\'');
+                if (!File.Exists(path)) return;
+
+                var loadouts = SaveRelicWriter.ReadAllCharacterLoadouts(path, Program.ItemsDb);
+                var defaults = new List<LoadoutPreset>();
+
+                foreach (var lo in loadouts)
+                {
+                    if (lo.EquippedRelicIds.Count > 0)
+                    {
+                        defaults.Add(new LoadoutPreset
+                        {
+                            Name = lo.CharacterName + " - Active " + lo.ActiveVesselName,
+                            CharacterName = lo.CharacterName,
+                            VesselId = lo.ActiveVesselId,
+                            VesselName = lo.ActiveVesselName,
+                            RelicIds = new List<uint>(lo.EquippedRelicIds),
+                            RelicNames = new List<string>(lo.EquippedRelicNames),
+                            RelicColors = new List<string>(lo.EquippedRelicColors),
+                            Description = "Default loadout captured from save."
+                        });
+                    }
+                }
+
+                if (defaults.Count > 0)
+                {
+                    PresetManager.SavePresets(defaults);
+                }
+            }
+            catch { }
+        }
+
+        public void RefreshMainPresets()
+        {
+            if (pnlMainPresetCards == null) return;
+            pnlMainPresetCards.SuspendLayout();
+            pnlMainPresetCards.Controls.Clear();
+
+            string filter = cmbMainCharFilter != null && cmbMainCharFilter.SelectedIndex > 0
+                ? cmbMainCharFilter.SelectedItem.ToString()
+                : null;
+
+            var presets = PresetManager.GetPresetsForCharacter(filter);
+            if (presets.Count == 0)
+            {
+                Label lblEmpty = new Label
+                {
+                    Text = "No presets saved yet. Click '💾 Snapshot Current Relics' above to capture your current in-game vessel build as a preset!",
+                    Font = new Font("Segoe UI", 9.5f, FontStyle.Italic),
+                    ForeColor = Color.FromArgb(150, 155, 170),
+                    Width = 650,
+                    Height = 80,
+                    TextAlign = ContentAlignment.MiddleCenter
+                };
+                pnlMainPresetCards.Controls.Add(lblEmpty);
+            }
+            else
+            {
+                foreach (var preset in presets)
+                {
+                    Panel card = new Panel
+                    {
+                        Width = 650,
+                        Height = 62,
+                        BackColor = Color.FromArgb(24, 27, 36),
+                        Margin = new Padding(0, 0, 0, 6),
+                        Padding = new Padding(8)
+                    };
+
+                    card.Paint += (s, e) =>
+                    {
+                        using (var pen = new Pen(Color.FromArgb(48, 54, 70), 1))
+                            e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
+                    };
+
+                    Label lblName = new Label
+                    {
+                        Text = preset.Name,
+                        Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
+                        ForeColor = Color.FromArgb(225, 195, 95),
+                        AutoSize = true,
+                        Location = new Point(8, 8)
+                    };
+                    card.Controls.Add(lblName);
+
+                    Label lblSub = new Label
+                    {
+                        Text = string.Format("{0} • {1} ({2} Relics)", preset.CharacterName, preset.VesselName ?? "Active Vessel", preset.RelicIds.Count),
+                        Font = new Font("Segoe UI", 8.5f),
+                        ForeColor = Color.FromArgb(160, 165, 180),
+                        AutoSize = true,
+                        Location = new Point(10, 32)
+                    };
+                    card.Controls.Add(lblSub);
+
+                    // Color dots
+                    FlowLayoutPanel pnlDots = new FlowLayoutPanel
+                    {
+                        Location = new Point(280, 20),
+                        Size = new Size(180, 22),
+                        FlowDirection = FlowDirection.LeftToRight,
+                        WrapContents = false
+                    };
+                    for (int i = 0; i < 6; i++)
+                    {
+                        Color dotColor = Color.FromArgb(50, 55, 70);
+                        string tip = "Empty";
+                        if (i < preset.RelicIds.Count)
+                        {
+                            string col = (i < preset.RelicColors.Count) ? preset.RelicColors[i] : "";
+                            if (col == "Red") dotColor = Color.FromArgb(220, 80, 80);
+                            else if (col == "Blue") dotColor = Color.FromArgb(80, 150, 240);
+                            else if (col == "Yellow") dotColor = Color.FromArgb(240, 200, 70);
+                            else if (col == "Green") dotColor = Color.FromArgb(80, 210, 110);
+                            else dotColor = Color.FromArgb(180, 180, 180);
+                            tip = (i < preset.RelicNames.Count) ? preset.RelicNames[i] : ("Relic " + (i + 1));
+                        }
+                        Label dot = new Label { Width = 12, Height = 12, Margin = new Padding(0, 4, 4, 0), BackColor = dotColor };
+                        var tt = new ToolTip();
+                        tt.SetToolTip(dot, tip);
+                        pnlDots.Controls.Add(dot);
+                    }
+                    card.Controls.Add(pnlDots);
+
+                    // Apply button
+                    Button btnApply = new Button
+                    {
+                        Text = "⚡ Apply",
+                        Location = new Point(475, 15),
+                        Width = 85,
+                        Height = 32,
+                        BackColor = Color.FromArgb(200, 160, 45),
+                        ForeColor = Color.Black,
+                        Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                        FlatStyle = FlatStyle.Flat,
+                        Cursor = Cursors.Hand
+                    };
+                    btnApply.FlatAppearance.BorderColor = Color.FromArgb(235, 195, 80);
+                    btnApply.Click += (s, e) =>
+                    {
+                        string savePath = txtFilePath.Text.Trim('"', '\'');
+                        if (!File.Exists(savePath))
+                        {
+                            MessageBox.Show(this, "Save file not found: " + savePath, "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+                        try
+                        {
+                            string bak;
+                            SaveRelicWriter.ApplyPreset(savePath, preset, out bak);
+                            try { SystemSounds.Asterisk.Play(); } catch { }
+                            lblOverlayStatus.Text = string.Format("✅ Preset '{0}' applied! Backup: {1}", preset.Name, Path.GetFileName(bak));
+                            lblOverlayStatus.ForeColor = Color.FromArgb(100, 240, 130);
+                            MessageBox.Show(this, string.Format("Loadout '{0}' applied to save file!\n\nBackup created at:\n{1}\n\n👉 Now exit to the Main Menu and click 'Continue' or 'Load Game' to activate in-game.", preset.Name, bak), "Loadout Applied", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show(this, "Failed to apply preset: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                    };
+                    card.Controls.Add(btnApply);
+
+                    // Delete button
+                    Button btnDel = new Button
+                    {
+                        Text = "✕",
+                        Location = new Point(570, 15),
+                        Width = 35,
+                        Height = 32,
+                        BackColor = Color.FromArgb(45, 48, 60),
+                        ForeColor = Color.FromArgb(220, 150, 150),
+                        FlatStyle = FlatStyle.Flat,
+                        Cursor = Cursors.Hand
+                    };
+                    btnDel.FlatAppearance.BorderColor = Color.FromArgb(65, 70, 85);
+                    btnDel.Click += (s, e) =>
+                    {
+                        if (MessageBox.Show(this, "Delete preset '" + preset.Name + "'?", "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                        {
+                            PresetManager.DeletePreset(preset.Id);
+                            RefreshMainPresets();
+                        }
+                    };
+                    card.Controls.Add(btnDel);
+
+                    pnlMainPresetCards.Controls.Add(card);
+                }
+            }
+
+            pnlMainPresetCards.ResumeLayout();
+        }
+
+        private void BtnMainSnapshot_Click(object sender, EventArgs e)
+        {
+            string savePath = txtFilePath.Text.Trim('"', '\'');
+            if (!File.Exists(savePath))
+            {
+                MessageBox.Show(this, "Save file not found. Please locate NR0000.co2 first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string charName = cmbMainCharFilter.SelectedIndex > 0 ? cmbMainCharFilter.SelectedItem.ToString() : "Wylder";
+
+            using (var prompt = new Form())
+            {
+                prompt.Width = 380;
+                prompt.Height = 170;
+                prompt.FormBorderStyle = FormBorderStyle.FixedDialog;
+                prompt.Text = "Snapshot Current Relics";
+                prompt.StartPosition = FormStartPosition.CenterParent;
+                prompt.BackColor = Color.FromArgb(24, 26, 34);
+                prompt.ForeColor = Color.White;
+
+                Label lblPrompt = new Label { Left = 20, Top = 16, Text = "Preset Name for " + charName + ":", AutoSize = true };
+                TextBox txtName = new TextBox { Left = 20, Top = 40, Width = 320, Text = charName + " - " + DateTime.Now.ToString("MMM d Build"), BackColor = Color.FromArgb(36, 40, 52), ForeColor = Color.White };
+                Button btnOk = new Button { Text = "Save", Left = 150, Width = 90, Top = 80, DialogResult = DialogResult.OK, BackColor = Color.FromArgb(200, 160, 45), ForeColor = Color.Black, FlatStyle = FlatStyle.Flat };
+                Button btnCancel = new Button { Text = "Cancel", Left = 250, Width = 90, Top = 80, DialogResult = DialogResult.Cancel, BackColor = Color.FromArgb(50, 55, 68), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+
+                prompt.Controls.Add(lblPrompt);
+                prompt.Controls.Add(txtName);
+                prompt.Controls.Add(btnOk);
+                prompt.Controls.Add(btnCancel);
+                prompt.AcceptButton = btnOk;
+                prompt.CancelButton = btnCancel;
+
+                if (prompt.ShowDialog(this) == DialogResult.OK && !string.IsNullOrEmpty(txtName.Text.Trim()))
+                {
+                    try
+                    {
+                        var snapshot = SaveRelicWriter.SnapshotActiveLoadout(savePath, charName, txtName.Text.Trim(), Program.ItemsDb);
+                        PresetManager.AddOrUpdatePreset(snapshot);
+                        RefreshMainPresets();
+                        try { SystemSounds.Asterisk.Play(); } catch { }
+                        lblOverlayStatus.Text = "💾 Saved preset '" + snapshot.Name + "'!";
+                        lblOverlayStatus.ForeColor = Color.FromArgb(100, 240, 130);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(this, "Failed to snapshot loadout: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
         }
 
         private void Form_DragEnter(object sender, DragEventArgs e)
@@ -1121,6 +1749,8 @@ Please review the attached spreadsheet and generate my builds!";
             if (files != null && files.Length > 0)
             {
                 txtFilePath.Text = files[0];
+                AutoSeedDefaultPresets();
+                RefreshMainPresets();
                 DoExtraction();
             }
         }
@@ -1142,13 +1772,14 @@ Please review the attached spreadsheet and generate my builds!";
                 if (ofd.ShowDialog(this) == DialogResult.OK)
                 {
                     txtFilePath.Text = ofd.FileName;
+                    AutoSeedDefaultPresets();
+                    RefreshMainPresets();
                 }
             }
         }
 
         private void TryAutoDetectFile(bool userClicked = false)
         {
-            // 1. Current directory
             if (File.Exists("NR0000.co2"))
             {
                 txtFilePath.Text = Path.GetFullPath("NR0000.co2");
@@ -1156,7 +1787,6 @@ Please review the attached spreadsheet and generate my builds!";
                 return;
             }
 
-            // 2. Nightreign AppData directory
             string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             string nrRoaming = Path.Combine(appData, "Nightreign");
             if (Directory.Exists(nrRoaming))
@@ -1170,7 +1800,6 @@ Please review the attached spreadsheet and generate my builds!";
                 }
             }
 
-            // 3. Fallback check for .sl2
             if (Directory.Exists(nrRoaming))
             {
                 var files = Directory.GetFiles(nrRoaming, "NR0000.sl2", SearchOption.AllDirectories);
@@ -1246,6 +1875,11 @@ Please review the attached spreadsheet and generate my builds!";
         public void TriggerExtraction()
         {
             DoExtraction();
+        }
+
+        public void ShowTabPublic(bool showExtract)
+        {
+            ShowTab(showExtract);
         }
     }
 }
