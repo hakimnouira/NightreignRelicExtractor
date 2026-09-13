@@ -33,10 +33,12 @@ namespace NightreignRelicExtractor
         public string RelicColor;
         public string RelicType;
         public List<string> EffectDescriptions;
+        public List<uint> EffectIds;
 
         public VesselSlotDetail()
         {
             EffectDescriptions = new List<string>();
+            EffectIds = new List<uint>();
             RelicName = "[ Empty Slot ]";
             RelicColor = "None";
             RelicType = "";
@@ -316,15 +318,12 @@ namespace NightreignRelicExtractor
                             info.Slots[s].RelicColor = rEntry.Item.Color;
                             info.Slots[s].RelicType = rEntry.Item.Type;
 
-                            if (effectsDb != null && rEntry.EffectIds != null)
+                            if (rEntry.EffectIds != null)
                             {
                                 foreach (var effId in rEntry.EffectIds)
                                 {
-                                    Program.EffectInfo eff;
-                                    if (effectsDb.TryGetValue(effId, out eff))
-                                    {
-                                        info.Slots[s].EffectDescriptions.Add(eff.NameEn);
-                                    }
+                                    info.Slots[s].EffectIds.Add(effId);
+                                    info.Slots[s].EffectDescriptions.Add(Program.GetFullEffectDisplay(effId));
                                 }
                             }
                         }

@@ -19,10 +19,22 @@ namespace NightreignRelicExtractor
         private ComboBox cmbColorFilter;
         private CheckBox chkCompatibleOnly;
         private ListView lstRelics;
+        private Label lblMatchCount;
+
+        // Inspector Controls
+        private Panel pnlInspector;
+        private Label lblInspectTitle;
+        private Label lblInspectColorBadge;
+        private Label lblInspectTypeBadge;
+        private Label lblInspectIdBadge;
+        private Label lblInspectCompatBadge;
+        private Panel pnlInspectEffects;
+        private Label lblInspectEmpty;
+
+        // Action Buttons
         private Button btnEquip;
         private Button btnClear;
         private Button btnCancel;
-        private Label lblMatchCount;
 
         public RelicPickerDialog(
             string charName,
@@ -45,18 +57,18 @@ namespace NightreignRelicExtractor
         private void InitializeComponent(string charName, string vesselName, int slotNumber)
         {
             this.Text = string.Format("Equip Relic - {0} • {1} Slot {2}", charName, vesselName, slotNumber);
-            this.Size = new Size(780, 560);
-            this.MinimumSize = new Size(680, 480);
+            this.Size = new Size(960, 660);
+            this.MinimumSize = new Size(820, 520);
             this.StartPosition = FormStartPosition.CenterParent;
             this.BackColor = Color.FromArgb(20, 22, 28);
             this.ForeColor = Color.FromArgb(235, 238, 245);
             this.Font = new Font("Segoe UI", 9f);
 
-            // Header panel
+            // 1. Header panel
             Panel pnlHeader = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 58,
+                Height = 56,
                 BackColor = Color.FromArgb(16, 18, 24),
                 Padding = new Padding(16, 8, 16, 8)
             };
@@ -64,10 +76,11 @@ namespace NightreignRelicExtractor
             Label lblTitle = new Label
             {
                 Text = string.Format("Equip Relic: {0} • {1} (Slot {2})", charName, vesselName, slotNumber),
-                Font = new Font("Segoe UI", 11f, FontStyle.Bold),
+                Font = new Font("Segoe UI", 11.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(220, 185, 65),
                 Location = new Point(14, 6),
-                AutoSize = true
+                AutoSize = true,
+                UseMnemonic = false
             };
             pnlHeader.Controls.Add(lblTitle);
 
@@ -79,11 +92,12 @@ namespace NightreignRelicExtractor
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 ForeColor = badgeColor,
                 Location = new Point(16, 30),
-                AutoSize = true
+                AutoSize = true,
+                UseMnemonic = false
             };
             pnlHeader.Controls.Add(lblReq);
 
-            // Search & Filter Panel
+            // 2. Search & Filter Panel
             Panel pnlFilters = new Panel
             {
                 Dock = DockStyle.Top,
@@ -104,10 +118,11 @@ namespace NightreignRelicExtractor
             txtSearch = new TextBox
             {
                 Location = new Point(68, 9),
-                Width = 220,
+                Width = 240,
                 BackColor = Color.FromArgb(16, 18, 24),
                 ForeColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle
+                BorderStyle = BorderStyle.FixedSingle,
+                Font = new Font("Segoe UI", 9.5f)
             };
             txtSearch.TextChanged += (s, e) => ApplyFilters();
             pnlFilters.Controls.Add(txtSearch);
@@ -115,7 +130,7 @@ namespace NightreignRelicExtractor
             Label lblCol = new Label
             {
                 Text = "Color:",
-                Location = new Point(300, 12),
+                Location = new Point(320, 12),
                 AutoSize = true,
                 ForeColor = Color.FromArgb(170, 180, 195)
             };
@@ -124,10 +139,11 @@ namespace NightreignRelicExtractor
             cmbColorFilter = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Location = new Point(345, 9),
-                Width = 105,
+                Location = new Point(365, 9),
+                Width = 110,
                 BackColor = Color.FromArgb(16, 18, 24),
-                ForeColor = Color.White
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9.5f)
             };
             cmbColorFilter.Items.AddRange(new object[] { "All Colors", "Red", "Blue", "Yellow", "Green" });
             cmbColorFilter.SelectedIndex = 0;
@@ -138,8 +154,8 @@ namespace NightreignRelicExtractor
             {
                 Text = "Compatible Only (" + requiredColor + ")",
                 Checked = true,
-                Location = new Point(465, 10),
-                Width = 180,
+                Location = new Point(490, 10),
+                Width = 200,
                 ForeColor = Color.FromArgb(120, 220, 160),
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 Cursor = Cursors.Hand
@@ -150,31 +166,33 @@ namespace NightreignRelicExtractor
             lblMatchCount = new Label
             {
                 Text = "",
-                Location = new Point(650, 12),
+                Location = new Point(705, 12),
                 AutoSize = true,
-                ForeColor = Color.FromArgb(160, 165, 180)
+                ForeColor = Color.FromArgb(160, 165, 180),
+                Font = new Font("Segoe UI", 9f, FontStyle.Italic)
             };
             pnlFilters.Controls.Add(lblMatchCount);
 
-            // Bottom action panel
+            // 3. Bottom Action Bar
             Panel pnlBottom = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 50,
+                Height = 52,
                 BackColor = Color.FromArgb(16, 18, 24),
-                Padding = new Padding(14, 8, 14, 8)
+                Padding = new Padding(14, 9, 14, 9)
             };
 
             btnEquip = new Button
             {
-                Text = "Equip Selected Relic",
-                Location = new Point(14, 8),
-                Width = 180,
-                Height = 32,
+                Text = "⚔️ Equip Selected Relic",
+                Location = new Point(14, 9),
+                Width = 200,
+                Height = 34,
                 BackColor = Color.FromArgb(200, 160, 45),
                 ForeColor = Color.FromArgb(15, 15, 20),
-                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                Font = new Font("Segoe UI", 10f, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
+                UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
             btnEquip.FlatAppearance.BorderColor = Color.FromArgb(235, 195, 80);
@@ -183,16 +201,18 @@ namespace NightreignRelicExtractor
 
             btnClear = new Button
             {
-                Text = "Empty Slot",
-                Location = new Point(204, 8),
-                Width = 110,
-                Height = 32,
-                BackColor = Color.FromArgb(60, 40, 40),
+                Text = "✕ Empty Slot",
+                Location = new Point(224, 9),
+                Width = 115,
+                Height = 34,
+                BackColor = Color.FromArgb(60, 36, 40),
                 ForeColor = Color.FromArgb(255, 170, 170),
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
+                UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
-            btnClear.FlatAppearance.BorderColor = Color.FromArgb(100, 60, 60);
+            btnClear.FlatAppearance.BorderColor = Color.FromArgb(100, 55, 60);
             btnClear.Click += (s, e) =>
             {
                 this.ClearSelected = true;
@@ -204,12 +224,13 @@ namespace NightreignRelicExtractor
             btnCancel = new Button
             {
                 Text = "Cancel",
-                Location = new Point(650, 8),
-                Width = 95,
-                Height = 32,
+                Location = new Point(830, 9),
+                Width = 100,
+                Height = 34,
                 BackColor = Color.FromArgb(40, 45, 55),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
+                UseMnemonic = false,
                 Cursor = Cursors.Hand,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
@@ -217,7 +238,105 @@ namespace NightreignRelicExtractor
             btnCancel.Click += (s, e) => { this.DialogResult = DialogResult.Cancel; this.Close(); };
             pnlBottom.Controls.Add(btnCancel);
 
-            // List View
+            // 4. Live Inspector Panel (Above bottom bar)
+            pnlInspector = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 160,
+                BackColor = Color.FromArgb(22, 25, 34),
+                Padding = new Padding(16, 8, 16, 8)
+            };
+            pnlInspector.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(Color.FromArgb(48, 56, 75), 1))
+                {
+                    e.Graphics.DrawRectangle(pen, 0, 0, pnlInspector.Width - 1, pnlInspector.Height - 1);
+                }
+            };
+
+            // Inspector Header Row
+            lblInspectTitle = new Label
+            {
+                Text = "Select a relic to inspect its full effect roll details",
+                Font = new Font("Segoe UI", 11.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(235, 195, 80),
+                Location = new Point(14, 8),
+                AutoSize = true,
+                UseMnemonic = false
+            };
+            pnlInspector.Controls.Add(lblInspectTitle);
+
+            lblInspectColorBadge = new Label
+            {
+                Text = "",
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                Location = new Point(360, 10),
+                AutoSize = true,
+                UseMnemonic = false
+            };
+            pnlInspector.Controls.Add(lblInspectColorBadge);
+
+            lblInspectTypeBadge = new Label
+            {
+                Text = "",
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(170, 180, 205),
+                Location = new Point(440, 10),
+                AutoSize = true,
+                UseMnemonic = false
+            };
+            pnlInspector.Controls.Add(lblInspectTypeBadge);
+
+            lblInspectIdBadge = new Label
+            {
+                Text = "",
+                Font = new Font("Segoe UI", 8.5f),
+                ForeColor = Color.FromArgb(130, 140, 160),
+                Location = new Point(530, 10),
+                AutoSize = true,
+                UseMnemonic = false
+            };
+            pnlInspector.Controls.Add(lblInspectIdBadge);
+
+            lblInspectCompatBadge = new Label
+            {
+                Text = "",
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                Location = new Point(660, 9),
+                AutoSize = true,
+                UseMnemonic = false
+            };
+            pnlInspector.Controls.Add(lblInspectCompatBadge);
+
+            // Inspector Effects Container
+            pnlInspectEffects = new Panel
+            {
+                Location = new Point(14, 34),
+                Size = new Size(916, 118),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
+                BackColor = Color.FromArgb(16, 18, 25),
+                Padding = new Padding(10, 6, 10, 6)
+            };
+            pnlInspectEffects.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(Color.FromArgb(38, 44, 60), 1))
+                {
+                    e.Graphics.DrawRectangle(pen, 0, 0, pnlInspectEffects.Width - 1, pnlInspectEffects.Height - 1);
+                }
+            };
+
+            lblInspectEmpty = new Label
+            {
+                Text = "Click or use arrow keys on any relic in the list above to view all full effect names, stack multipliers, durations, and compatibility.",
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Italic),
+                ForeColor = Color.FromArgb(140, 145, 165),
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            pnlInspectEffects.Controls.Add(lblInspectEmpty);
+            pnlInspector.Controls.Add(pnlInspectEffects);
+
+            // 5. Relics List View (Fill center)
             lstRelics = new ListView
             {
                 Dock = DockStyle.Fill,
@@ -230,12 +349,13 @@ namespace NightreignRelicExtractor
                 Font = new Font("Segoe UI", 9f),
                 BorderStyle = BorderStyle.None
             };
-            lstRelics.Columns.Add("Color", 75);
-            lstRelics.Columns.Add("Name", 190);
+            lstRelics.Columns.Add("Color", 85);
+            lstRelics.Columns.Add("Name", 210);
             lstRelics.Columns.Add("Type", 85);
-            lstRelics.Columns.Add("Effects", 300);
-            lstRelics.Columns.Add("Relic ID", 85);
+            lstRelics.Columns.Add("All Relic Effects", 450);
+            lstRelics.Columns.Add("Relic ID", 95);
 
+            lstRelics.SelectedIndexChanged += (s, e) => UpdateInspector();
             lstRelics.DoubleClick += (s, e) => BtnEquip_Click(s, e);
             lstRelics.KeyDown += (s, e) =>
             {
@@ -246,10 +366,12 @@ namespace NightreignRelicExtractor
                 }
             };
 
+            // Add controls in docking order
             this.Controls.Add(lstRelics);
+            this.Controls.Add(pnlInspector);
+            this.Controls.Add(pnlBottom);
             this.Controls.Add(pnlFilters);
             this.Controls.Add(pnlHeader);
-            this.Controls.Add(pnlBottom);
 
             this.AcceptButton = btnEquip;
             this.CancelButton = btnCancel;
@@ -279,17 +401,14 @@ namespace NightreignRelicExtractor
                 if (r.Item == null) continue;
 
                 // 1. Compatibility filter
-                if (compOnly)
-                {
-                    bool isDeepRelic = (r.Item.Type == "DeepRelic");
-                    if (isDeepSlot && !isDeepRelic) continue;
-                    if (!isDeepSlot && isDeepRelic) continue;
+                bool isDeepRelic = (r.Item.Type == "DeepRelic");
+                bool slotTypeMatch = isDeepSlot ? isDeepRelic : !isDeepRelic;
+                bool colorMatch = string.Equals(requiredColor, "Any", StringComparison.OrdinalIgnoreCase) ||
+                                  string.Equals(r.Item.Color, requiredColor, StringComparison.OrdinalIgnoreCase);
 
-                    if (!string.Equals(requiredColor, "Any", StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (!string.Equals(r.Item.Color, requiredColor, StringComparison.OrdinalIgnoreCase))
-                            continue;
-                    }
+                if (compOnly && (!slotTypeMatch || !colorMatch))
+                {
+                    continue;
                 }
 
                 // 2. Explicit color filter dropdown
@@ -301,18 +420,14 @@ namespace NightreignRelicExtractor
 
                 // Format effects
                 var effNames = new List<string>();
-                if (effectsDb != null && r.EffectIds != null)
+                if (r.EffectIds != null)
                 {
                     foreach (var effId in r.EffectIds)
                     {
-                        Program.EffectInfo eff;
-                        if (effectsDb.TryGetValue(effId, out eff))
-                        {
-                            effNames.Add(eff.NameEn);
-                        }
+                        effNames.Add(Program.GetFullEffectDisplay(effId));
                     }
                 }
-                string effectsSummary = string.Join("; ", effNames);
+                string effectsSummary = string.Join(" • ", effNames);
 
                 // 3. Search query
                 if (!string.IsNullOrEmpty(search))
@@ -343,12 +458,129 @@ namespace NightreignRelicExtractor
 
             if (lblMatchCount != null)
             {
-                lblMatchCount.Text = matchCount + " relics";
+                lblMatchCount.Text = matchCount + " relics found";
             }
             lstRelics.EndUpdate();
+
             if (lstRelics.Items.Count > 0)
             {
                 lstRelics.Items[0].Selected = true;
+            }
+            else
+            {
+                UpdateInspector();
+            }
+        }
+
+        private void UpdateInspector()
+        {
+            if (lstRelics.SelectedItems.Count == 0)
+            {
+                lblInspectTitle.Text = "No Relic Selected";
+                lblInspectTitle.ForeColor = Color.FromArgb(160, 165, 180);
+                lblInspectColorBadge.Text = "";
+                lblInspectTypeBadge.Text = "";
+                lblInspectIdBadge.Text = "";
+                lblInspectCompatBadge.Text = "";
+                pnlInspectEffects.Controls.Clear();
+                pnlInspectEffects.Controls.Add(lblInspectEmpty);
+                return;
+            }
+
+            var r = lstRelics.SelectedItems[0].Tag as Program.RelicEntry;
+            if (r == null || r.Item == null) return;
+
+            pnlInspectEffects.Controls.Clear();
+
+            // Header info
+            lblInspectTitle.Text = r.Item.NameEn;
+            lblInspectTitle.ForeColor = Color.FromArgb(235, 195, 80);
+
+            lblInspectColorBadge.Text = "● " + (r.Item.Color ?? "Colorless").ToUpper();
+            lblInspectColorBadge.ForeColor = GetColorForName(r.Item.Color);
+
+            lblInspectTypeBadge.Text = "[" + r.Item.Type + "]";
+            lblInspectIdBadge.Text = string.Format("ID: 0x{0:X8}", r.RelicId);
+
+            // Compatibility check
+            bool isDeepRelic = (r.Item.Type == "DeepRelic");
+            bool slotTypeMatch = isDeepSlot ? isDeepRelic : !isDeepRelic;
+            bool colorMatch = string.Equals(requiredColor, "Any", StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(r.Item.Color, requiredColor, StringComparison.OrdinalIgnoreCase);
+
+            if (slotTypeMatch && colorMatch)
+            {
+                lblInspectCompatBadge.Text = "✅ COMPATIBLE WITH SLOT";
+                lblInspectCompatBadge.ForeColor = Color.FromArgb(90, 225, 130);
+            }
+            else if (!slotTypeMatch)
+            {
+                lblInspectCompatBadge.Text = isDeepSlot ? "⚠️ Requires Deep Relic" : "⚠️ Requires Normal Relic";
+                lblInspectCompatBadge.ForeColor = Color.FromArgb(250, 130, 130);
+            }
+            else
+            {
+                lblInspectCompatBadge.Text = "⚠️ Requires " + requiredColor.ToUpper() + " Relic";
+                lblInspectCompatBadge.ForeColor = Color.FromArgb(250, 130, 130);
+            }
+
+            // Build Effect Rows
+            if (r.EffectIds == null || r.EffectIds.Count == 0)
+            {
+                Label lblNoEff = new Label
+                {
+                    Text = "No special effects associated with this relic.",
+                    Font = new Font("Segoe UI", 9f, FontStyle.Italic),
+                    ForeColor = Color.FromArgb(150, 155, 170),
+                    Dock = DockStyle.Fill,
+                    TextAlign = ContentAlignment.MiddleLeft
+                };
+                pnlInspectEffects.Controls.Add(lblNoEff);
+                return;
+            }
+
+            int y = 6;
+            for (int idx = 0; idx < r.EffectIds.Count; idx++)
+            {
+                uint effId = r.EffectIds[idx];
+                string effDisplay = Program.GetFullEffectDisplay(effId);
+
+                Label lblBullet = new Label
+                {
+                    Text = string.Format("{0}.", idx + 1),
+                    Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(220, 185, 65),
+                    Location = new Point(8, y),
+                    Size = new Size(22, 22),
+                    TextAlign = ContentAlignment.MiddleRight
+                };
+                pnlInspectEffects.Controls.Add(lblBullet);
+
+                Label lblEffText = new Label
+                {
+                    Text = effDisplay,
+                    Font = new Font("Segoe UI", 9.5f, FontStyle.Regular),
+                    ForeColor = Color.FromArgb(220, 235, 255),
+                    Location = new Point(34, y + 1),
+                    Size = new Size(740, 22),
+                    AutoEllipsis = true,
+                    UseMnemonic = false
+                };
+                pnlInspectEffects.Controls.Add(lblEffText);
+
+                Label lblEffId = new Label
+                {
+                    Text = string.Format("0x{0:X4} ({0})", effId),
+                    Font = new Font("Consolas", 8.5f),
+                    ForeColor = Color.FromArgb(130, 140, 160),
+                    Location = new Point(780, y + 2),
+                    Size = new Size(125, 20),
+                    TextAlign = ContentAlignment.MiddleRight,
+                    Anchor = AnchorStyles.Top | AnchorStyles.Right
+                };
+                pnlInspectEffects.Controls.Add(lblEffId);
+
+                y += 24;
             }
         }
 

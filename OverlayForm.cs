@@ -353,7 +353,9 @@ namespace NightreignRelicExtractor
                     else if (colorStr == "Green") dotColor = Color.FromArgb(80, 210, 110);
                     else dotColor = Color.FromArgb(180, 180, 180);
 
-                    tipText = (i < preset.RelicNames.Count) ? preset.RelicNames[i] : ("Relic " + (i + 1));
+                    string rName = (i < preset.RelicNames.Count) ? preset.RelicNames[i] : ("Relic " + (i + 1));
+                    string rEff = (preset.RelicEffects != null && i < preset.RelicEffects.Count) ? preset.RelicEffects[i] : "";
+                    tipText = string.Format("Slot {0}: {1} ({2})\n{3}", i + 1, rName, colorStr, string.IsNullOrEmpty(rEff) ? "Relic effects saved" : ("Effects:\n" + rEff));
                 }
 
                 Label dot = new Label
@@ -380,6 +382,7 @@ namespace NightreignRelicExtractor
                 ForeColor = Color.FromArgb(15, 15, 20),
                 Font = new Font("Segoe UI", 10f, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
+                UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
             btnApply.FlatAppearance.BorderColor = Color.FromArgb(235, 195, 80);

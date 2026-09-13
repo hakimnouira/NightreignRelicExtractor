@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Web.Script.Serialization;
@@ -15,6 +15,7 @@ namespace NightreignRelicExtractor
         public List<uint> RelicIds { get; set; }
         public List<string> RelicNames { get; set; }
         public List<string> RelicColors { get; set; }
+        public List<string> RelicEffects { get; set; }
         public string Description { get; set; }
 
         public LoadoutPreset()
@@ -23,6 +24,7 @@ namespace NightreignRelicExtractor
             RelicIds = new List<uint>();
             RelicNames = new List<string>();
             RelicColors = new List<string>();
+            RelicEffects = new List<string>();
             Description = "";
         }
     }
