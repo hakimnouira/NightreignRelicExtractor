@@ -2261,6 +2261,7 @@ namespace NightreignRelicExtractor
                     var relicIds = new List<uint>();
                     var relicNames = new List<string>();
                     var relicColors = new List<string>();
+                    var relicEffects = new List<string>();
 
                     for (int s = 0; s < 6; s++)
                     {
@@ -2270,6 +2271,10 @@ namespace NightreignRelicExtractor
                             relicIds.Add(slot.RelicId);
                             relicNames.Add(slot.RelicName);
                             relicColors.Add(slot.RelicColor);
+                            if (slot.EffectDescriptions != null && slot.EffectDescriptions.Count > 0)
+                                relicEffects.Add(string.Join(" • ", slot.EffectDescriptions.ToArray()));
+                            else
+                                relicEffects.Add("");
                         }
                     }
 
@@ -2282,6 +2287,7 @@ namespace NightreignRelicExtractor
                         RelicIds = relicIds,
                         RelicNames = relicNames,
                         RelicColors = relicColors,
+                        RelicEffects = relicEffects,
                         Description = "Created via Vessel Builder on " + DateTime.Now.ToString("g")
                     };
 
@@ -2748,6 +2754,7 @@ namespace NightreignRelicExtractor
                             RelicIds = new List<uint>(lo.EquippedRelicIds),
                             RelicNames = new List<string>(lo.EquippedRelicNames),
                             RelicColors = new List<string>(lo.EquippedRelicColors),
+                            RelicEffects = new List<string>(lo.EquippedRelicEffects),
                             Description = "Default loadout captured from save."
                         });
                     }

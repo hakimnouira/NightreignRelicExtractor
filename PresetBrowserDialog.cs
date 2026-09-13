@@ -14,14 +14,49 @@ namespace NightreignRelicExtractor
         private TextBox txtSearch;
         private FlowLayoutPanel pnlCards;
         private Label lblCount;
+        private ToolTip tipHelp;
+        private Dictionary<uint, Program.RelicEntry> relicLookup = new Dictionary<uint, Program.RelicEntry>();
 
         public LoadoutPreset SelectedPresetToLoad { get; private set; }
 
         public PresetBrowserDialog(string currentSavePath)
         {
             this.saveFilePath = currentSavePath;
+            tipHelp = new ToolTip { ShowAlways = true, InitialDelay = 200, ReshowDelay = 100, AutoPopDelay = 10000 };
+            LoadRelicInventory();
             InitializeComponent();
             RefreshPresets();
+        }
+
+        private void LoadRelicInventory()
+        {
+            try { Program.EnsureDatabasesLoaded(); } catch { }
+
+            if (string.IsNullOrEmpty(saveFilePath) || !File.Exists(saveFilePath))
+            {
+                saveFilePath = SaveRelicWriter.FindDefaultSaveFile();
+            }
+
+            if (!string.IsNullOrEmpty(saveFilePath) && File.Exists(saveFilePath))
+            {
+                try
+                {
+                    byte[] cleanData = Program.DecryptSaveFileReadOnly(saveFilePath);
+                    if (cleanData != null && Program.ItemsDb != null)
+                    {
+                        var relics = Program.ExtractRelics(cleanData, Program.ItemsDb);
+                        if (relics != null)
+                        {
+                            foreach (var r in relics)
+                            {
+                                if (r != null && !relicLookup.ContainsKey(r.RelicId))
+                                    relicLookup[r.RelicId] = r;
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
         }
 
         private void InitializeComponent()
@@ -55,7 +90,7 @@ namespace NightreignRelicExtractor
 
             Label lblSub = new Label
             {
-                Text = "Browse, load into Vessel Builder, or apply presets directly to your save file.",
+                Text = "Browse, inspect relic effects, load into Vessel Builder, or apply presets directly to your save file.",
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
                 ForeColor = Color.FromArgb(160, 170, 190),
                 Location = new Point(16, 32),
@@ -197,7 +232,36 @@ namespace NightreignRelicExtractor
                     bool matchName = (p.Name != null && p.Name.ToLowerInvariant().Contains(query));
                     bool matchDesc = (p.Description != null && p.Description.ToLowerInvariant().Contains(query));
                     bool matchChar = (p.CharacterName != null && p.CharacterName.ToLowerInvariant().Contains(query));
-                    if (!matchName && !matchDesc && !matchChar) continue;
+                    bool matchRelic = false;
+
+                    if (p.RelicNames != null)
+                    {
+                        foreach (var rn in p.RelicNames)
+                        {
+                            if (rn != null && rn.ToLowerInvariant().Contains(query)) { matchRelic = true; break; }
+                        }
+                    }
+                    if (!matchRelic && p.RelicEffects != null)
+                    {
+                        foreach (var re in p.RelicEffects)
+                        {
+                            if (re != null && re.ToLowerInvariant().Contains(query)) { matchRelic = true; break; }
+                        }
+                    }
+                    if (!matchRelic && p.RelicIds != null)
+                    {
+                        for (int i = 0; i < p.RelicIds.Count; i++)
+                        {
+                            var effs = GetEffectsForRelic(p, i, p.RelicIds[i]);
+                            foreach (var eff in effs)
+                            {
+                                if (eff.ToLowerInvariant().Contains(query)) { matchRelic = true; break; }
+                            }
+                            if (matchRelic) break;
+                        }
+                    }
+
+                    if (!matchName && !matchDesc && !matchChar && !matchRelic) continue;
                 }
 
                 pnlCards.Controls.Add(CreatePresetCard(p));
@@ -210,12 +274,16 @@ namespace NightreignRelicExtractor
 
         private Panel CreatePresetCard(LoadoutPreset preset)
         {
+            int relicCount = (preset.RelicIds != null) ? preset.RelicIds.Count : 0;
+            int numRows = (relicCount <= 3) ? 1 : 2;
+            int cardHeight = (relicCount == 0) ? 88 : (56 + (numRows * 94) + 10);
+
             var card = new Panel
             {
                 Width = 905,
-                Height = 115,
+                Height = cardHeight,
                 BackColor = Color.FromArgb(24, 28, 38),
-                Margin = new Padding(0, 0, 0, 10),
+                Margin = new Padding(0, 0, 0, 12),
                 BorderStyle = BorderStyle.FixedSingle
             };
 
@@ -251,67 +319,19 @@ namespace NightreignRelicExtractor
                     Font = new Font("Segoe UI", 8.5f, FontStyle.Italic),
                     ForeColor = Color.FromArgb(145, 155, 175),
                     Location = new Point(14, 32),
-                    Size = new Size(580, 18),
+                    Size = new Size(480, 18),
                     AutoEllipsis = true,
                     UseMnemonic = false
                 };
                 card.Controls.Add(lblDesc);
             }
 
-            // Relic badges line (up to 3)
-            int badgeX = 14;
-            int badgeY = 56;
-            if (preset.RelicIds != null)
-            {
-                for (int i = 0; i < Math.Min(3, preset.RelicIds.Count); i++)
-                {
-                    uint rid = preset.RelicIds[i];
-                    string rName = (preset.RelicNames != null && i < preset.RelicNames.Count) ? preset.RelicNames[i] : string.Format("0x{0:X8}", rid);
-                    string rColor = (preset.RelicColors != null && i < preset.RelicColors.Count) ? preset.RelicColors[i] : "Any";
-                    Color tagCol = GetColorForBadge(rColor);
-
-                    Panel badge = new Panel
-                    {
-                        Location = new Point(badgeX, badgeY),
-                        Height = 24,
-                        BackColor = Color.FromArgb(32, 36, 48),
-                        BorderStyle = BorderStyle.FixedSingle,
-                        Cursor = Cursors.Default
-                    };
-
-                    Label dot = new Label
-                    {
-                        Text = "●",
-                        ForeColor = tagCol,
-                        Font = new Font("Segoe UI", 8f),
-                        Location = new Point(4, 3),
-                        AutoSize = true
-                    };
-                    badge.Controls.Add(dot);
-
-                    Label txt = new Label
-                    {
-                        Text = string.Format("Slot {0}: {1}", i + 1, rName),
-                        ForeColor = Color.FromArgb(220, 225, 235),
-                        Font = new Font("Segoe UI", 8.5f),
-                        Location = new Point(18, 3),
-                        AutoSize = true,
-                        UseMnemonic = false
-                    };
-                    badge.Controls.Add(txt);
-                    badge.Width = txt.Right + 8;
-
-                    card.Controls.Add(badge);
-                    badgeX += badge.Width + 8;
-                }
-            }
-
             // Action Buttons
             Button btnLoad = new Button
             {
                 Text = "⚱️ Load in Builder",
-                Location = new Point(610, 18),
-                Width = 135,
+                Location = new Point(505, 10),
+                Width = 130,
                 Height = 32,
                 BackColor = Color.FromArgb(30, 60, 95),
                 ForeColor = Color.FromArgb(190, 225, 255),
@@ -331,8 +351,8 @@ namespace NightreignRelicExtractor
             Button btnEquip = new Button
             {
                 Text = "⚡ Equip & Save",
-                Location = new Point(755, 18),
-                Width = 135,
+                Location = new Point(645, 10),
+                Width = 145,
                 Height = 32,
                 BackColor = Color.FromArgb(190, 150, 40),
                 ForeColor = Color.Black,
@@ -343,18 +363,21 @@ namespace NightreignRelicExtractor
             btnEquip.FlatAppearance.BorderColor = Color.FromArgb(230, 190, 70);
             btnEquip.Click += (s, e) =>
             {
-                if (string.IsNullOrEmpty(saveFilePath) || !File.Exists(saveFilePath))
+                string targetSave = saveFilePath;
+                if (string.IsNullOrEmpty(targetSave) || !File.Exists(targetSave))
+                    targetSave = SaveRelicWriter.FindDefaultSaveFile();
+
+                if (string.IsNullOrEmpty(targetSave) || !File.Exists(targetSave))
                 {
-                    MessageBox.Show(this, "Save file not selected or not found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show(this, "Save file not selected or not found.\nPlease load or select your save file first.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
                 try
                 {
                     string bak;
-                    SaveRelicWriter.ApplyPreset(saveFilePath, preset, out bak, setActiveVessel: true);
+                    SaveRelicWriter.ApplyPreset(targetSave, preset, out bak, setActiveVessel: true);
                     MessageBox.Show(this, string.Format("Loadout '{0}' applied to save file!\n\nBackup created at:\n{1}\n\n👉 Now exit to Main Menu and click 'Continue' to reload.", preset.Name, bak), "Preset Applied", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
-
                 catch (Exception ex)
                 {
                     MessageBox.Show(this, "Failed to apply preset: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -365,12 +388,12 @@ namespace NightreignRelicExtractor
             Button btnDel = new Button
             {
                 Text = "🗑️ Delete",
-                Location = new Point(795, 60),
-                Width = 95,
-                Height = 26,
+                Location = new Point(800, 10),
+                Width = 92,
+                Height = 32,
                 BackColor = Color.FromArgb(40, 25, 30),
                 ForeColor = Color.FromArgb(255, 120, 130),
-                Font = new Font("Segoe UI", 8f),
+                Font = new Font("Segoe UI", 8.5f),
                 FlatStyle = FlatStyle.Flat,
                 Cursor = Cursors.Hand
             };
@@ -385,7 +408,181 @@ namespace NightreignRelicExtractor
             };
             card.Controls.Add(btnDel);
 
+            // Relic slot boxes with full effect listings
+            if (relicCount == 0)
+            {
+                Label lblNoRelics = new Label
+                {
+                    Text = "(No relics configured in this preset)",
+                    ForeColor = Color.FromArgb(120, 130, 150),
+                    Font = new Font("Segoe UI", 8.5f, FontStyle.Italic),
+                    Location = new Point(14, 56),
+                    AutoSize = true
+                };
+                card.Controls.Add(lblNoRelics);
+            }
+            else
+            {
+                int maxRelics = Math.Min(6, relicCount);
+                for (int i = 0; i < maxRelics; i++)
+                {
+                    int row = i / 3;
+                    int col = i % 3;
+
+                    int colX = 12 + col * 294;
+                    int rowY = 54 + row * 94;
+                    int boxW = 286;
+                    int boxH = 88;
+
+                    uint rid = preset.RelicIds[i];
+                    string rName = GetRelicName(preset, i, rid);
+                    string rColor = GetRelicColor(preset, i, rid);
+                    Color tagCol = GetColorForBadge(rColor);
+
+                    Panel slotBox = new Panel
+                    {
+                        Location = new Point(colX, rowY),
+                        Size = new Size(boxW, boxH),
+                        BackColor = Color.FromArgb(16, 19, 27),
+                        BorderStyle = BorderStyle.FixedSingle
+                    };
+
+                    Label dot = new Label
+                    {
+                        Text = "●",
+                        ForeColor = tagCol,
+                        Font = new Font("Segoe UI", 8.5f),
+                        Location = new Point(5, 4),
+                        AutoSize = true
+                    };
+                    slotBox.Controls.Add(dot);
+
+                    Label txtTitle = new Label
+                    {
+                        Text = string.Format("Slot {0}: {1}", i + 1, rName),
+                        ForeColor = Color.FromArgb(235, 240, 255),
+                        Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                        Location = new Point(20, 4),
+                        Size = new Size(boxW - 25, 18),
+                        AutoEllipsis = true,
+                        UseMnemonic = false
+                    };
+                    tipHelp.SetToolTip(txtTitle, string.Format("Slot {0}: {1} ({2})", i + 1, rName, rColor));
+                    slotBox.Controls.Add(txtTitle);
+
+                    Panel div = new Panel
+                    {
+                        Location = new Point(5, 24),
+                        Size = new Size(boxW - 10, 1),
+                        BackColor = Color.FromArgb(40, 46, 62)
+                    };
+                    slotBox.Controls.Add(div);
+
+                    // Relic effects
+                    var effs = GetEffectsForRelic(preset, i, rid);
+                    int effY = 28;
+                    if (effs != null && effs.Count > 0)
+                    {
+                        for (int eIdx = 0; eIdx < Math.Min(3, effs.Count); eIdx++)
+                        {
+                            string effectText = effs[eIdx];
+                            Label lblEff = new Label
+                            {
+                                Text = "✦ " + effectText,
+                                ForeColor = Color.FromArgb(175, 200, 235),
+                                Font = new Font("Segoe UI", 7.75f),
+                                Location = new Point(6, effY),
+                                Size = new Size(boxW - 12, 17),
+                                AutoEllipsis = true,
+                                UseMnemonic = false
+                            };
+                            tipHelp.SetToolTip(lblEff, effectText);
+                            slotBox.Controls.Add(lblEff);
+                            effY += 18;
+                        }
+                    }
+                    else
+                    {
+                        Label lblEff = new Label
+                        {
+                            Text = "• Standard Relic (No passive)",
+                            ForeColor = Color.FromArgb(120, 130, 150),
+                            Font = new Font("Segoe UI", 7.75f, FontStyle.Italic),
+                            Location = new Point(6, 28),
+                            Size = new Size(boxW - 12, 17),
+                            AutoEllipsis = true,
+                            UseMnemonic = false
+                        };
+                        slotBox.Controls.Add(lblEff);
+                    }
+
+                    card.Controls.Add(slotBox);
+                }
+            }
+
             return card;
+        }
+
+        private string GetRelicName(LoadoutPreset preset, int slotIndex, uint relicId)
+        {
+            if (preset.RelicNames != null && slotIndex < preset.RelicNames.Count && !string.IsNullOrEmpty(preset.RelicNames[slotIndex]))
+                return preset.RelicNames[slotIndex];
+            if (relicId != 0 && relicLookup.ContainsKey(relicId) && relicLookup[relicId].Item != null)
+                return relicLookup[relicId].Item.NameEn;
+            if (relicId != 0)
+                return string.Format("0x{0:X8}", relicId);
+            return "Empty Slot";
+        }
+
+        private string GetRelicColor(LoadoutPreset preset, int slotIndex, uint relicId)
+        {
+            if (preset.RelicColors != null && slotIndex < preset.RelicColors.Count && !string.IsNullOrEmpty(preset.RelicColors[slotIndex]))
+                return preset.RelicColors[slotIndex];
+            if (relicId != 0 && relicLookup.ContainsKey(relicId) && relicLookup[relicId].Item != null)
+                return relicLookup[relicId].Item.Color;
+            return "Any";
+        }
+
+        private List<string> GetEffectsForRelic(LoadoutPreset preset, int slotIndex, uint relicId)
+        {
+            var list = new List<string>();
+
+            if (preset.RelicEffects != null && slotIndex < preset.RelicEffects.Count && !string.IsNullOrEmpty(preset.RelicEffects[slotIndex]))
+            {
+                string raw = preset.RelicEffects[slotIndex];
+                string[] parts;
+                if (raw.Contains(" • "))
+                    parts = raw.Split(new string[] { " • " }, StringSplitOptions.RemoveEmptyEntries);
+                else if (raw.Contains("\n"))
+                    parts = raw.Split(new char[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+                else if (raw.Contains(";"))
+                    parts = raw.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                else
+                    parts = new string[] { raw };
+
+                foreach (var p in parts)
+                {
+                    string s = p.Trim();
+                    if (!string.IsNullOrEmpty(s)) list.Add(s);
+                }
+                if (list.Count > 0) return list;
+            }
+
+            if (relicId != 0 && relicLookup.ContainsKey(relicId))
+            {
+                var r = relicLookup[relicId];
+                if (r.EffectIds != null && r.EffectIds.Count > 0)
+                {
+                    foreach (var eid in r.EffectIds)
+                    {
+                        string disp = Program.GetFullEffectDisplay(eid);
+                        if (!string.IsNullOrEmpty(disp)) list.Add(disp);
+                    }
+                    if (list.Count > 0) return list;
+                }
+            }
+
+            return list;
         }
 
         private Color GetColorForBadge(string col)
@@ -460,7 +657,6 @@ namespace NightreignRelicExtractor
                         MessageBox.Show(this, "Failed to parse JSON: " + err, "Import Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         return;
                     }
-
 
                     foreach (var imp in imported)
                     {

@@ -14,12 +14,14 @@ namespace NightreignRelicExtractor
         public List<uint> EquippedRelicIds;
         public List<string> EquippedRelicNames;
         public List<string> EquippedRelicColors;
+        public List<string> EquippedRelicEffects;
 
         public CharacterLoadoutInfo()
         {
             EquippedRelicIds = new List<uint>();
             EquippedRelicNames = new List<string>();
             EquippedRelicColors = new List<string>();
+            EquippedRelicEffects = new List<string>();
         }
     }
 
@@ -485,16 +487,28 @@ namespace NightreignRelicExtractor
 
                             string itemName = string.Format("Relic 0x{0:X8}", rId);
                             string itemColor = "Unknown";
+                            string itemEffects = "";
 
                             Program.RelicEntry rEntry;
                             if (relicMap.TryGetValue(rId, out rEntry) && rEntry.Item != null)
                             {
                                 itemName = rEntry.Item.NameEn;
                                 itemColor = rEntry.Item.Color;
+                                if (rEntry.EffectIds != null && rEntry.EffectIds.Count > 0)
+                                {
+                                    var effList = new List<string>();
+                                    foreach (var eid in rEntry.EffectIds)
+                                    {
+                                        string disp = Program.GetFullEffectDisplay(eid);
+                                        if (!string.IsNullOrEmpty(disp)) effList.Add(disp);
+                                    }
+                                    itemEffects = string.Join(" • ", effList.ToArray());
+                                }
                             }
 
                             info.EquippedRelicNames.Add(itemName);
                             info.EquippedRelicColors.Add(itemColor);
+                            info.EquippedRelicEffects.Add(itemEffects);
                         }
                     }
                 }
@@ -679,10 +693,32 @@ namespace NightreignRelicExtractor
                 RelicIds = new List<uint>(match.EquippedRelicIds),
                 RelicNames = new List<string>(match.EquippedRelicNames),
                 RelicColors = new List<string>(match.EquippedRelicColors),
+                RelicEffects = new List<string>(match.EquippedRelicEffects),
                 Description = "Captured from in-game equipped vessel on " + DateTime.Now.ToString("g")
             };
 
             return preset;
+        }
+
+        public static string FindDefaultSaveFile()
+        {
+            try
+            {
+                string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                string nrRoaming = Path.Combine(appData, "Nightreign");
+                if (Directory.Exists(nrRoaming))
+                {
+                    var files = Directory.GetFiles(nrRoaming, "NR0000.co2", SearchOption.AllDirectories);
+                    foreach (var f in files)
+                    {
+                        string dir = Path.GetFileName(Path.GetDirectoryName(f));
+                        if (dir.Length >= 16) return f;
+                    }
+                    if (files.Length > 0) return files[0];
+                }
+            }
+            catch { }
+            return null;
         }
     }
 }

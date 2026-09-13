@@ -77,7 +77,9 @@ namespace NightreignRelicExtractor
             sb.AppendLine(string.Format("    \"vesselName\": \"{0}\",", vesselName));
             sb.AppendLine("    \"category\": \"meta_first\",");
             sb.AppendLine("    \"description\": \"Maximizes fiery follow-ups with high attack scaling for rapid boss staggers.\",");
-            sb.AppendLine("    \"relicIds\": [ 12345678, 23456789, 34567890 ]");
+            sb.AppendLine("    \"relicIds\": [ 12345678, 23456789, 34567890 ],");
+            sb.AppendLine("    \"relicNames\": [ \"Crimson Amber Medallion\", \"Cerulean Amber Medallion\", \"Viridian Amber Medallion\" ],");
+            sb.AppendLine("    \"relicEffects\": [ \"Boosts maximum HP (+6%)\", \"Increases maximum FP (+7%)\", \"Increases maximum stamina (+9%)\" ]");
             sb.AppendLine("  }");
             sb.AppendLine("]");
             sb.AppendLine("```");
@@ -171,6 +173,39 @@ namespace NightreignRelicExtractor
                                 p.RelicIds.Add(rid);
                         }
                     }
+                }
+            }
+
+            p.RelicNames = new List<string>();
+            if (dict.ContainsKey("relicNames"))
+            {
+                var arr = dict["relicNames"] as System.Collections.ArrayList;
+                if (arr != null)
+                {
+                    foreach (var item in arr)
+                        if (item != null) p.RelicNames.Add(item.ToString());
+                }
+            }
+
+            p.RelicColors = new List<string>();
+            if (dict.ContainsKey("relicColors"))
+            {
+                var arr = dict["relicColors"] as System.Collections.ArrayList;
+                if (arr != null)
+                {
+                    foreach (var item in arr)
+                        if (item != null) p.RelicColors.Add(item.ToString());
+                }
+            }
+
+            p.RelicEffects = new List<string>();
+            if (dict.ContainsKey("relicEffects"))
+            {
+                var arr = dict["relicEffects"] as System.Collections.ArrayList;
+                if (arr != null)
+                {
+                    foreach (var item in arr)
+                        if (item != null) p.RelicEffects.Add(item.ToString());
                 }
             }
 
