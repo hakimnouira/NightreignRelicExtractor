@@ -57,41 +57,49 @@ namespace NightreignRelicExtractor
         private void InitializeComponent(string charName, string vesselName, int slotNumber)
         {
             this.Text = string.Format("Equip Relic - {0} • {1} Slot {2}", charName, vesselName, slotNumber);
-            this.Size = new Size(960, 660);
-            this.MinimumSize = new Size(820, 520);
+            this.Size = new Size(980, 680);
+            this.MinimumSize = new Size(840, 540);
             this.StartPosition = FormStartPosition.CenterParent;
-            this.BackColor = Color.FromArgb(20, 22, 28);
-            this.ForeColor = Color.FromArgb(235, 238, 245);
+            this.BackColor = NightreignTheme.BgVoid;
+            this.ForeColor = NightreignTheme.TextPrimary;
             this.Font = new Font("Segoe UI", 9f);
+            this.DoubleBuffered = true;
 
             // 1. Header panel
             Panel pnlHeader = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 56,
-                BackColor = Color.FromArgb(16, 18, 24),
+                Height = 58,
+                BackColor = NightreignTheme.BgHeader,
                 Padding = new Padding(16, 8, 16, 8)
+            };
+            pnlHeader.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(NightreignTheme.BorderSubtle, 1))
+                {
+                    e.Graphics.DrawLine(pen, 0, pnlHeader.Height - 1, pnlHeader.Width, pnlHeader.Height - 1);
+                }
             };
 
             Label lblTitle = new Label
             {
                 Text = string.Format("Equip Relic: {0} • {1} (Slot {2})", charName, vesselName, slotNumber),
-                Font = new Font("Segoe UI", 11.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(220, 185, 65),
-                Location = new Point(14, 6),
+                Font = NightreignTheme.FontCardTitle,
+                ForeColor = NightreignTheme.GoldRune,
+                Location = new Point(14, 8),
                 AutoSize = true,
                 UseMnemonic = false
             };
             pnlHeader.Controls.Add(lblTitle);
 
             string slotTypeDesc = isDeepSlot ? "Deep Relic" : "Normal Relic";
-            Color badgeColor = GetColorForName(requiredColor);
+            Color badgeColor = NightreignTheme.GetAffinityColor(requiredColor);
             Label lblReq = new Label
             {
                 Text = string.Format("Slot Requirement: {0} ({1})", requiredColor.ToUpper(), slotTypeDesc),
-                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                Font = NightreignTheme.FontSmallBold,
                 ForeColor = badgeColor,
-                Location = new Point(16, 30),
+                Location = new Point(16, 32),
                 AutoSize = true,
                 UseMnemonic = false
             };
@@ -101,26 +109,34 @@ namespace NightreignRelicExtractor
             Panel pnlFilters = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 44,
-                BackColor = Color.FromArgb(26, 30, 40),
+                Height = 46,
+                BackColor = NightreignTheme.BgDark,
                 Padding = new Padding(14, 8, 14, 8)
+            };
+            pnlFilters.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(NightreignTheme.BorderSubtle, 1))
+                {
+                    e.Graphics.DrawLine(pen, 0, pnlFilters.Height - 1, pnlFilters.Width, pnlFilters.Height - 1);
+                }
             };
 
             Label lblSearch = new Label
             {
                 Text = "Search:",
-                Location = new Point(14, 12),
+                Location = new Point(14, 13),
                 AutoSize = true,
-                ForeColor = Color.FromArgb(170, 180, 195)
+                ForeColor = NightreignTheme.TextMuted,
+                Font = NightreignTheme.FontSmallBold
             };
             pnlFilters.Controls.Add(lblSearch);
 
             txtSearch = new TextBox
             {
-                Location = new Point(68, 9),
+                Location = new Point(70, 10),
                 Width = 240,
-                BackColor = Color.FromArgb(16, 18, 24),
-                ForeColor = Color.White,
+                BackColor = NightreignTheme.BgInput,
+                ForeColor = NightreignTheme.TextPrimary,
                 BorderStyle = BorderStyle.FixedSingle,
                 Font = new Font("Segoe UI", 9.5f)
             };
@@ -130,20 +146,22 @@ namespace NightreignRelicExtractor
             Label lblCol = new Label
             {
                 Text = "Color:",
-                Location = new Point(320, 12),
+                Location = new Point(325, 13),
                 AutoSize = true,
-                ForeColor = Color.FromArgb(170, 180, 195)
+                ForeColor = NightreignTheme.TextMuted,
+                Font = NightreignTheme.FontSmallBold
             };
             pnlFilters.Controls.Add(lblCol);
 
             cmbColorFilter = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Location = new Point(365, 9),
-                Width = 110,
-                BackColor = Color.FromArgb(16, 18, 24),
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9.5f)
+                Location = new Point(372, 10),
+                Width = 115,
+                BackColor = NightreignTheme.BgInput,
+                ForeColor = NightreignTheme.TextPrimary,
+                Font = new Font("Segoe UI", 9.5f),
+                FlatStyle = FlatStyle.Flat
             };
             cmbColorFilter.Items.AddRange(new object[] { "All Colors", "Red", "Blue", "Yellow", "Green" });
             cmbColorFilter.SelectedIndex = 0;
@@ -154,9 +172,9 @@ namespace NightreignRelicExtractor
             {
                 Text = "Compatible Only (" + requiredColor + ")",
                 Checked = true,
-                Location = new Point(490, 10),
+                Location = new Point(502, 11),
                 Width = 200,
-                ForeColor = Color.FromArgb(120, 220, 160),
+                ForeColor = NightreignTheme.TextHighlight,
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
@@ -166,9 +184,9 @@ namespace NightreignRelicExtractor
             lblMatchCount = new Label
             {
                 Text = "",
-                Location = new Point(705, 12),
+                Location = new Point(715, 13),
                 AutoSize = true,
-                ForeColor = Color.FromArgb(160, 165, 180),
+                ForeColor = NightreignTheme.TextMuted,
                 Font = new Font("Segoe UI", 9f, FontStyle.Italic)
             };
             pnlFilters.Controls.Add(lblMatchCount);
@@ -177,42 +195,41 @@ namespace NightreignRelicExtractor
             Panel pnlBottom = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 52,
-                BackColor = Color.FromArgb(16, 18, 24),
+                Height = 54,
+                BackColor = NightreignTheme.BgDark,
                 Padding = new Padding(14, 9, 14, 9)
+            };
+            pnlBottom.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(NightreignTheme.BorderSubtle, 1))
+                {
+                    e.Graphics.DrawLine(pen, 0, 0, pnlBottom.Width, 0);
+                }
             };
 
             btnEquip = new Button
             {
                 Text = "⚔️ Equip Selected Relic",
                 Location = new Point(14, 9),
-                Width = 200,
-                Height = 34,
-                BackColor = Color.FromArgb(200, 160, 45),
-                ForeColor = Color.FromArgb(15, 15, 20),
+                Width = 210,
+                Height = 36,
                 Font = new Font("Segoe UI", 10f, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
-            btnEquip.FlatAppearance.BorderColor = Color.FromArgb(235, 195, 80);
+            NightreignTheme.StyleGoldButton(btnEquip);
             btnEquip.Click += BtnEquip_Click;
             pnlBottom.Controls.Add(btnEquip);
 
             btnClear = new Button
             {
                 Text = "✕ Empty Slot",
-                Location = new Point(224, 9),
-                Width = 115,
-                Height = 34,
-                BackColor = Color.FromArgb(60, 36, 40),
-                ForeColor = Color.FromArgb(255, 170, 170),
+                Location = new Point(234, 9),
+                Width = 120,
+                Height = 36,
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
-            btnClear.FlatAppearance.BorderColor = Color.FromArgb(100, 55, 60);
+            NightreignTheme.StyleDangerButton(btnClear);
             btnClear.Click += (s, e) =>
             {
                 this.ClearSelected = true;
@@ -224,17 +241,14 @@ namespace NightreignRelicExtractor
             btnCancel = new Button
             {
                 Text = "Cancel",
-                Location = new Point(830, 9),
+                Location = new Point(850, 9),
                 Width = 100,
-                Height = 34,
-                BackColor = Color.FromArgb(40, 45, 55),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
+                Height = 36,
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 Cursor = Cursors.Hand,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
-            btnCancel.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 90);
+            NightreignTheme.StyleSecondaryButton(btnCancel);
             btnCancel.Click += (s, e) => { this.DialogResult = DialogResult.Cancel; this.Close(); };
             pnlBottom.Controls.Add(btnCancel);
 
@@ -242,13 +256,13 @@ namespace NightreignRelicExtractor
             pnlInspector = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 160,
-                BackColor = Color.FromArgb(22, 25, 34),
+                Height = 165,
+                BackColor = NightreignTheme.BgCard,
                 Padding = new Padding(16, 8, 16, 8)
             };
             pnlInspector.Paint += (s, e) =>
             {
-                using (var pen = new Pen(Color.FromArgb(48, 56, 75), 1))
+                using (var pen = new Pen(NightreignTheme.BorderSubtle, 1))
                 {
                     e.Graphics.DrawRectangle(pen, 0, 0, pnlInspector.Width - 1, pnlInspector.Height - 1);
                 }
@@ -258,8 +272,8 @@ namespace NightreignRelicExtractor
             lblInspectTitle = new Label
             {
                 Text = "Select a relic to inspect its full effect roll details",
-                Font = new Font("Segoe UI", 11.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(235, 195, 80),
+                Font = NightreignTheme.FontCardTitle,
+                ForeColor = NightreignTheme.GoldRune,
                 Location = new Point(14, 8),
                 AutoSize = true,
                 UseMnemonic = false
@@ -269,7 +283,7 @@ namespace NightreignRelicExtractor
             lblInspectColorBadge = new Label
             {
                 Text = "",
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                Font = NightreignTheme.FontSmallBold,
                 Location = new Point(360, 10),
                 AutoSize = true,
                 UseMnemonic = false
@@ -279,9 +293,9 @@ namespace NightreignRelicExtractor
             lblInspectTypeBadge = new Label
             {
                 Text = "",
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(170, 180, 205),
-                Location = new Point(440, 10),
+                Font = NightreignTheme.FontSmallBold,
+                ForeColor = NightreignTheme.TextMuted,
+                Location = new Point(450, 10),
                 AutoSize = true,
                 UseMnemonic = false
             };
@@ -290,9 +304,9 @@ namespace NightreignRelicExtractor
             lblInspectIdBadge = new Label
             {
                 Text = "",
-                Font = new Font("Segoe UI", 8.5f),
-                ForeColor = Color.FromArgb(130, 140, 160),
-                Location = new Point(530, 10),
+                Font = NightreignTheme.FontCode,
+                ForeColor = NightreignTheme.TextSubtle,
+                Location = new Point(545, 10),
                 AutoSize = true,
                 UseMnemonic = false
             };
@@ -301,8 +315,8 @@ namespace NightreignRelicExtractor
             lblInspectCompatBadge = new Label
             {
                 Text = "",
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                Location = new Point(660, 9),
+                Font = NightreignTheme.FontSmallBold,
+                Location = new Point(680, 9),
                 AutoSize = true,
                 UseMnemonic = false
             };
@@ -312,14 +326,14 @@ namespace NightreignRelicExtractor
             pnlInspectEffects = new Panel
             {
                 Location = new Point(14, 34),
-                Size = new Size(916, 118),
+                Size = new Size(936, 120),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
-                BackColor = Color.FromArgb(16, 18, 25),
+                BackColor = Color.FromArgb(14, 16, 23),
                 Padding = new Padding(10, 6, 10, 6)
             };
             pnlInspectEffects.Paint += (s, e) =>
             {
-                using (var pen = new Pen(Color.FromArgb(38, 44, 60), 1))
+                using (var pen = new Pen(NightreignTheme.BorderSubtle, 1))
                 {
                     e.Graphics.DrawRectangle(pen, 0, 0, pnlInspectEffects.Width - 1, pnlInspectEffects.Height - 1);
                 }
@@ -329,7 +343,7 @@ namespace NightreignRelicExtractor
             {
                 Text = "Click or use arrow keys on any relic in the list above to view all full effect names, stack multipliers, durations, and compatibility.",
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Italic),
-                ForeColor = Color.FromArgb(140, 145, 165),
+                ForeColor = NightreignTheme.TextMuted,
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleCenter
             };
@@ -344,14 +358,19 @@ namespace NightreignRelicExtractor
                 FullRowSelect = true,
                 GridLines = true,
                 MultiSelect = false,
-                BackColor = Color.FromArgb(14, 16, 21),
-                ForeColor = Color.FromArgb(225, 230, 240),
-                Font = new Font("Segoe UI", 9f),
+                BackColor = Color.FromArgb(12, 14, 20),
+                ForeColor = NightreignTheme.TextPrimary,
+                Font = new Font("Segoe UI", 9.5f),
                 BorderStyle = BorderStyle.None
             };
-            lstRelics.Columns.Add("Color", 85);
-            lstRelics.Columns.Add("Name", 210);
-            lstRelics.Columns.Add("Type", 85);
+            try
+            {
+                typeof(Control).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(lstRelics, true, null);
+            }
+            catch { }
+            lstRelics.Columns.Add("Color", 95);
+            lstRelics.Columns.Add("Name", 225);
+            lstRelics.Columns.Add("Type", 95);
             lstRelics.Columns.Add("All Relic Effects", 450);
             lstRelics.Columns.Add("Relic ID", 95);
 
@@ -379,11 +398,7 @@ namespace NightreignRelicExtractor
 
         private static Color GetColorForName(string colorName)
         {
-            if (string.Equals(colorName, "Red", StringComparison.OrdinalIgnoreCase)) return Color.FromArgb(240, 90, 90);
-            if (string.Equals(colorName, "Blue", StringComparison.OrdinalIgnoreCase)) return Color.FromArgb(90, 160, 240);
-            if (string.Equals(colorName, "Yellow", StringComparison.OrdinalIgnoreCase)) return Color.FromArgb(235, 195, 70);
-            if (string.Equals(colorName, "Green", StringComparison.OrdinalIgnoreCase)) return Color.FromArgb(90, 215, 120);
-            return Color.FromArgb(200, 205, 220); // Any
+            return NightreignTheme.GetAffinityColor(colorName);
         }
 
         private void ApplyFilters()
@@ -477,7 +492,7 @@ namespace NightreignRelicExtractor
             if (lstRelics.SelectedItems.Count == 0)
             {
                 lblInspectTitle.Text = "No Relic Selected";
-                lblInspectTitle.ForeColor = Color.FromArgb(160, 165, 180);
+                lblInspectTitle.ForeColor = NightreignTheme.TextMuted;
                 lblInspectColorBadge.Text = "";
                 lblInspectTypeBadge.Text = "";
                 lblInspectIdBadge.Text = "";
@@ -494,10 +509,10 @@ namespace NightreignRelicExtractor
 
             // Header info
             lblInspectTitle.Text = r.Item.NameEn;
-            lblInspectTitle.ForeColor = Color.FromArgb(235, 195, 80);
+            lblInspectTitle.ForeColor = NightreignTheme.GoldRune;
 
             lblInspectColorBadge.Text = "● " + (r.Item.Color ?? "Colorless").ToUpper();
-            lblInspectColorBadge.ForeColor = GetColorForName(r.Item.Color);
+            lblInspectColorBadge.ForeColor = NightreignTheme.GetAffinityColor(r.Item.Color);
 
             lblInspectTypeBadge.Text = "[" + r.Item.Type + "]";
             lblInspectIdBadge.Text = string.Format("ID: 0x{0:X8}", r.RelicId);
@@ -511,17 +526,17 @@ namespace NightreignRelicExtractor
             if (slotTypeMatch && colorMatch)
             {
                 lblInspectCompatBadge.Text = "✅ COMPATIBLE WITH SLOT";
-                lblInspectCompatBadge.ForeColor = Color.FromArgb(90, 225, 130);
+                lblInspectCompatBadge.ForeColor = NightreignTheme.TextHighlight;
             }
             else if (!slotTypeMatch)
             {
                 lblInspectCompatBadge.Text = isDeepSlot ? "⚠️ Requires Deep Relic" : "⚠️ Requires Normal Relic";
-                lblInspectCompatBadge.ForeColor = Color.FromArgb(250, 130, 130);
+                lblInspectCompatBadge.ForeColor = NightreignTheme.TextDanger;
             }
             else
             {
                 lblInspectCompatBadge.Text = "⚠️ Requires " + requiredColor.ToUpper() + " Relic";
-                lblInspectCompatBadge.ForeColor = Color.FromArgb(250, 130, 130);
+                lblInspectCompatBadge.ForeColor = NightreignTheme.TextDanger;
             }
 
             // Build Effect Rows
@@ -531,7 +546,7 @@ namespace NightreignRelicExtractor
                 {
                     Text = "No special effects associated with this relic.",
                     Font = new Font("Segoe UI", 9f, FontStyle.Italic),
-                    ForeColor = Color.FromArgb(150, 155, 170),
+                    ForeColor = NightreignTheme.TextMuted,
                     Dock = DockStyle.Fill,
                     TextAlign = ContentAlignment.MiddleLeft
                 };
@@ -549,7 +564,7 @@ namespace NightreignRelicExtractor
                 {
                     Text = string.Format("{0}.", idx + 1),
                     Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                    ForeColor = Color.FromArgb(220, 185, 65),
+                    ForeColor = NightreignTheme.GoldRune,
                     Location = new Point(8, y),
                     Size = new Size(22, 22),
                     TextAlign = ContentAlignment.MiddleRight
@@ -560,7 +575,7 @@ namespace NightreignRelicExtractor
                 {
                     Text = effDisplay,
                     Font = new Font("Segoe UI", 9.5f, FontStyle.Regular),
-                    ForeColor = Color.FromArgb(220, 235, 255),
+                    ForeColor = NightreignTheme.TextEffects,
                     Location = new Point(34, y + 1),
                     Size = new Size(740, 22),
                     AutoEllipsis = true,
@@ -571,8 +586,8 @@ namespace NightreignRelicExtractor
                 Label lblEffId = new Label
                 {
                     Text = string.Format("0x{0:X4} ({0})", effId),
-                    Font = new Font("Consolas", 8.5f),
-                    ForeColor = Color.FromArgb(130, 140, 160),
+                    Font = NightreignTheme.FontCode,
+                    ForeColor = NightreignTheme.TextSubtle,
                     Location = new Point(780, y + 2),
                     Size = new Size(125, 20),
                     TextAlign = ContentAlignment.MiddleRight,

@@ -70,7 +70,7 @@
 * **Build script**: `build.bat`
 * **Direct compile command**:
   ```cmd
-  C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /nologo /codepage:65001 /utf8output /optimize+ /target:winexe /out:NightreignRelicExtractor.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll /r:System.Web.Extensions.dll /res:items_data.json,items_data.json /res:effects_data.json,effects_data.json Localization.cs AIPromptBuilder.cs PresetBrowserDialog.cs PresetManager.cs SaveRelicWriter.cs OverlayForm.cs RelicPickerDialog.cs NightreignRelicExtractor.cs
+  C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /nologo /codepage:65001 /utf8output /optimize+ /target:winexe /out:NightreignRelicExtractor.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll /r:System.Web.Extensions.dll /res:items_data.json,items_data.json /res:effects_data.json,effects_data.json NightreignTheme.cs Localization.cs AIPromptBuilder.cs PresetBrowserDialog.cs PresetManager.cs SaveRelicWriter.cs OverlayForm.cs RelicPickerDialog.cs NightreignRelicExtractor.cs
   ```
 * **CI/CD**: GitHub Actions workflow `.github/workflows/release.yml` automatically compiles on version tags (`v*.*.*`) and attaches `NightreignRelicExtractor.exe` as a GitHub Release asset.
 
@@ -82,3 +82,22 @@
 3. **Always preserve the 4-backup rotation**: Use `SaveRelicWriter.CreateBackupAndRotate(saveFilePath, 4)` before modifying any save.
 4. **Always recalculate MD5 on save**: Recompute hash over `dec[4 .. 0x100004]` and place at `dec[0x100004]`.
 5. **C# 5 Language Constraint**: When editing C# code, do NOT use C# 6/7/8+ features (`out var`, string interpolation `$"..."` if targeting older compilers, null-propagating `?.`, etc.) to keep compilation 100% compatible with native .NET 4.8 `csc.exe`.
+
+---
+
+### 6. Dark Fantasy Gamer HUD Design System (`NightreignTheme.cs`)
+* **Color Hierarchy**:
+  * Deep Void: `#0B0D12` (`BgVoid`), `#12151D` (`BgDark`)
+  * Surface Panels & Cards: `#181B24` (`BgCard`) with 1px subtle border `#2A2F3D` (`BorderSubtle`)
+  * Rune Gold Primary: `#ECC864` (`GoldRune`), Hover `#FFD875` (`GoldHover`)
+  * Typography: Primary `#F0F2F6`, Subtitles/Muted `#8F97A8`, Highlight `#5ADCA0`, Passive effects `#BAE6FD`
+  * Relic Affinities: Red `#E05252`, Blue `#4A90E2`, Holy Yellow `#F5C542`, Green `#3CB371`, Any `#9B72CF`
+* **Zero Flicker Architecture**:
+  * `DoubleBufferedPanel` & `DoubleBufferedFlowLayoutPanel` custom controls.
+  * Custom GDI+ `DrawGlowingAffinityRing` for vessel socket circles with concentric anti-aliased glow effects.
+* **Component Styling**:
+  * Pill navigation tabs with glowing active indicator line.
+  * Card-based vessel builder with 6 affinity sockets, hover animations, and 1-click equipped badges.
+  * Visual preset browser with search, multi-character filters, and direct save injection.
+  * Transparent HUD overlay (F10) with 1.5px gold bezel and live in-game preset switcher.
+

@@ -147,6 +147,18 @@ namespace NightreignRelicExtractor
         [STAThread]
         static int Main(string[] args)
         {
+            if (args.Length > 0 && args[0].Equals("--screenshot-all", StringComparison.OrdinalIgnoreCase))
+            {
+                TakeBuilderScreenshot("assets/screenshot_builder.png");
+                TakeFormScreenshot("assets/screenshot.png");
+                TakeLoadoutsScreenshot("assets/screenshot_loadouts.png");
+                TakeOverlayScreenshot("assets/screenshot_overlay.png");
+                TakePresetsScreenshot("assets/screenshot_presets.png");
+                TakePickerScreenshot("assets/screenshot_picker.png");
+                Console.WriteLine("All 6 screenshots captured successfully in assets/");
+                return 0;
+            }
+
             if (args.Length > 0 && args[0].Equals("--screenshot", StringComparison.OrdinalIgnoreCase))
             {
                 string shotPath = args.Length > 1 ? args[1] : "assets/screenshot.png";
@@ -175,6 +187,19 @@ namespace NightreignRelicExtractor
                 return 0;
             }
 
+            if (args.Length > 0 && args[0].Equals("--screenshot-presets", StringComparison.OrdinalIgnoreCase))
+            {
+                string shotPath = args.Length > 1 ? args[1] : "assets/screenshot_presets.png";
+                TakePresetsScreenshot(shotPath);
+                return 0;
+            }
+
+            if (args.Length > 0 && args[0].Equals("--screenshot-picker", StringComparison.OrdinalIgnoreCase))
+            {
+                string shotPath = args.Length > 1 ? args[1] : "assets/screenshot_picker.png";
+                TakePickerScreenshot(shotPath);
+                return 0;
+            }
 
             // If arguments provided and not explicitly requesting GUI, run in CLI mode
             if (args.Length > 0 && !args[0].Equals("--gui", StringComparison.OrdinalIgnoreCase))
@@ -267,7 +292,6 @@ namespace NightreignRelicExtractor
         }
 
         private static void TakeLoadoutsScreenshot(string outputPath)
-
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
@@ -275,7 +299,65 @@ namespace NightreignRelicExtractor
             using (var form = new MainForm())
             {
                 form.Show();
-                form.ShowTabPublic(false);
+                form.ShowTab(2);
+                Application.DoEvents();
+                System.Threading.Thread.Sleep(500);
+                Application.DoEvents();
+
+                using (var bmp = new Bitmap(form.Width, form.Height))
+                {
+                    form.DrawToBitmap(bmp, new Rectangle(0, 0, form.Width, form.Height));
+                    string dir = Path.GetDirectoryName(outputPath);
+                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                    bmp.Save(outputPath, System.Drawing.Imaging.ImageFormat.Png);
+                }
+                form.Close();
+            }
+        }
+
+        private static void TakePresetsScreenshot(string outputPath)
+        {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            EnsureDatabasesLoaded();
+            string savePath = File.Exists("NR0000.co2") ? Path.GetFullPath("NR0000.co2") : "";
+            using (var form = new PresetBrowserDialog(savePath))
+            {
+                form.Show();
+                Application.DoEvents();
+                System.Threading.Thread.Sleep(500);
+                Application.DoEvents();
+
+                using (var bmp = new Bitmap(form.Width, form.Height))
+                {
+                    form.DrawToBitmap(bmp, new Rectangle(0, 0, form.Width, form.Height));
+                    string dir = Path.GetDirectoryName(outputPath);
+                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                    bmp.Save(outputPath, System.Drawing.Imaging.ImageFormat.Png);
+                }
+                form.Close();
+            }
+        }
+
+        private static void TakePickerScreenshot(string outputPath)
+        {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            EnsureDatabasesLoaded();
+            string savePath = File.Exists("NR0000.co2") ? Path.GetFullPath("NR0000.co2") : "";
+            List<RelicEntry> relics = null;
+            if (File.Exists(savePath))
+            {
+                try
+                {
+                    byte[] cleanData = DecryptSaveFileReadOnly(savePath);
+                    if (cleanData != null) relics = ExtractRelics(cleanData, ItemsDb);
+                }
+                catch { }
+            }
+            using (var form = new RelicPickerDialog("Wylder", "Urn", 1, false, "Red", relics, EffectsDb))
+            {
+                form.Show();
                 Application.DoEvents();
                 System.Threading.Thread.Sleep(500);
                 Application.DoEvents();
@@ -949,9 +1031,9 @@ namespace NightreignRelicExtractor
         private Button btnNavBuilder;
         private Button btnNavOverlay;
         private Button btnQuickOverlay;
-        private Panel pnlExtractView;
-        private Panel pnlBuilderView;
-        private Panel pnlOverlayView;
+        private DoubleBufferedPanel pnlExtractView;
+        private DoubleBufferedPanel pnlBuilderView;
+        private DoubleBufferedPanel pnlOverlayView;
 
         // Vessel Builder controls
         private ComboBox cmbBuilderChar;
@@ -959,7 +1041,7 @@ namespace NightreignRelicExtractor
         private Label lblBuilderActiveStatus;
         private CheckBox chkBuilderSetActive;
         private Button btnBuilderReload;
-        private Panel pnlBuilderSlots;
+        private DoubleBufferedPanel pnlBuilderSlots;
         private Button btnBuilderSave;
         private Button btnBuilderPreset;
         private Button btnBuilderBrowsePresets;
@@ -977,7 +1059,7 @@ namespace NightreignRelicExtractor
         private Label lblBuilderDeepHeader;
         private VesselDetailInfo currentVesselDetail;
 
-        private Panel[] slotPanels = new Panel[6];
+        private DoubleBufferedPanel[] slotPanels = new DoubleBufferedPanel[6];
         private Label[] lblSlotHeaders = new Label[6];
         private Label[] lblSlotReqColors = new Label[6];
         private Label[] lblSlotRelicNames = new Label[6];
@@ -988,7 +1070,7 @@ namespace NightreignRelicExtractor
         // Overlay & Presets tab controls
         private ComboBox cmbMainCharFilter;
         private CheckBox chkEnableHotkey;
-        private FlowLayoutPanel pnlMainPresetCards;
+        private DoubleBufferedFlowLayoutPanel pnlMainPresetCards;
         private Button btnMainSnapshot;
         private Button btnMainOpenOverlay;
         private Label lblOverlayStatus;
@@ -1058,13 +1140,14 @@ namespace NightreignRelicExtractor
         private void InitializeComponent()
         {
             this.Text = "Nightreign Relic Extractor & Loadout Switcher";
-            this.Size = new Size(960, 740);
-            this.MinimumSize = new Size(960, 740);
+            this.Size = new Size(980, 755);
+            this.MinimumSize = new Size(980, 755);
             this.StartPosition = FormStartPosition.CenterScreen;
-            this.BackColor = Color.FromArgb(20, 22, 28);
-            this.ForeColor = Color.FromArgb(235, 238, 245);
+            this.BackColor = NightreignTheme.BgVoid;
+            this.ForeColor = NightreignTheme.TextPrimary;
             this.Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
             this.AllowDrop = true;
+            this.DoubleBuffered = true;
 
             slotTooltip.AutoPopDelay = 15000;
             slotTooltip.InitialDelay = 200;
@@ -1079,15 +1162,22 @@ namespace NightreignRelicExtractor
             {
                 Dock = DockStyle.Top,
                 Height = 68,
-                BackColor = Color.FromArgb(16, 18, 24),
+                BackColor = NightreignTheme.BgHeader,
                 Padding = new Padding(18, 10, 18, 10)
+            };
+            pnlHeader.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(NightreignTheme.BorderSubtle, 1))
+                {
+                    e.Graphics.DrawLine(pen, 0, pnlHeader.Height - 1, pnlHeader.Width, pnlHeader.Height - 1);
+                }
             };
 
             lblHeaderTitle = new Label
             {
                 Text = Localization.Get("AppTitle"),
-                Font = new Font("Segoe UI", 13.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(212, 175, 55),
+                Font = NightreignTheme.FontAppTitle,
+                ForeColor = NightreignTheme.GoldRune,
                 AutoSize = true,
                 UseMnemonic = false,
                 Location = new Point(16, 10)
@@ -1095,22 +1185,28 @@ namespace NightreignRelicExtractor
 
             lblVersion = new Label
             {
-                Text = "v1.4",
+                Text = "v1.5",
                 Font = new Font("Segoe UI", 7.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(120, 125, 145),
-                BackColor = Color.FromArgb(32, 36, 48),
+                ForeColor = NightreignTheme.GoldRune,
+                BackColor = Color.FromArgb(28, 33, 46),
                 AutoSize = false,
-                Size = new Size(36, 16),
+                Size = new Size(38, 18),
                 TextAlign = ContentAlignment.MiddleCenter,
                 Location = new Point(485, 14)
             };
-
+            lblVersion.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(NightreignTheme.BorderSubtle, 1))
+                {
+                    e.Graphics.DrawRectangle(pen, 0, 0, lblVersion.Width - 1, lblVersion.Height - 1);
+                }
+            };
 
             lblHeaderSub = new Label
             {
                 Text = Localization.Get("AppSubtitle"),
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(145, 150, 170),
+                ForeColor = NightreignTheme.TextMuted,
                 AutoSize = true,
                 Location = new Point(18, 38)
             };
@@ -1118,12 +1214,13 @@ namespace NightreignRelicExtractor
             cmbLanguage = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Location = new Point(595, 18),
+                Location = new Point(610, 18),
                 Width = 135,
                 Height = 28,
-                BackColor = Color.FromArgb(32, 36, 48),
-                ForeColor = Color.FromArgb(220, 225, 240),
-                Font = new Font("Segoe UI", 9f)
+                BackColor = NightreignTheme.BgCard,
+                ForeColor = NightreignTheme.TextPrimary,
+                Font = new Font("Segoe UI", 9f),
+                FlatStyle = FlatStyle.Flat
             };
             cmbLanguage.Items.Add("🌐 English");
             cmbLanguage.Items.Add("🌐 Français");
@@ -1140,17 +1237,14 @@ namespace NightreignRelicExtractor
             btnQuickOverlay = new Button
             {
                 Text = Localization.Get("QuickOverlay"),
-                Location = new Point(745, 14),
-                Width = 180,
+                Location = new Point(760, 14),
+                Width = 185,
                 Height = 38,
-                BackColor = Color.FromArgb(40, 58, 85),
-                ForeColor = Color.FromArgb(190, 225, 255),
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat,
                 UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
-            btnQuickOverlay.FlatAppearance.BorderColor = Color.FromArgb(70, 110, 165);
+            NightreignTheme.StylePrimaryBlueButton(btnQuickOverlay);
             btnQuickOverlay.Click += (s, e) => ToggleOverlay();
 
             pnlHeader.Controls.Add(lblHeaderTitle);
@@ -1159,23 +1253,29 @@ namespace NightreignRelicExtractor
             pnlHeader.Controls.Add(cmbLanguage);
             pnlHeader.Controls.Add(btnQuickOverlay);
 
-
             // Tab Navigation Bar
             Panel pnlNav = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 38,
-                BackColor = Color.FromArgb(24, 27, 35)
+                Height = 44,
+                BackColor = NightreignTheme.BgDark
+            };
+            pnlNav.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(NightreignTheme.BorderSubtle, 1))
+                {
+                    e.Graphics.DrawLine(pen, 0, pnlNav.Height - 1, pnlNav.Width, pnlNav.Height - 1);
+                }
             };
 
             btnNavExtract = new Button
             {
                 Text = "📥 Relic Extractor",
-                Location = new Point(0, 0),
-                Width = 175,
-                Height = 38,
-                BackColor = Color.FromArgb(34, 38, 50),
-                ForeColor = Color.FromArgb(220, 185, 65),
+                Location = new Point(14, 4),
+                Width = 185,
+                Height = 36,
+                BackColor = NightreignTheme.BgCard,
+                ForeColor = NightreignTheme.GoldRune,
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
                 UseMnemonic = false,
@@ -1183,23 +1283,32 @@ namespace NightreignRelicExtractor
             };
             btnNavExtract.FlatAppearance.BorderSize = 0;
             btnNavExtract.Click += (s, e) => ShowTab(0);
+            btnNavExtract.MouseEnter += (s, e) => { if (btnNavExtract.Tag as string != "active") btnNavExtract.ForeColor = NightreignTheme.TextPrimary; };
+            btnNavExtract.MouseLeave += (s, e) => { if (btnNavExtract.Tag as string != "active") btnNavExtract.ForeColor = NightreignTheme.TextMuted; };
             btnNavExtract.Paint += (s, e) =>
             {
-                if (btnNavExtract.Tag as string == "active")
+                bool isActive = (btnNavExtract.Tag as string == "active");
+                if (isActive)
                 {
-                    using (var pen = new Pen(Color.FromArgb(212, 175, 55), 3))
-                        e.Graphics.DrawLine(pen, 0, btnNavExtract.Height - 2, btnNavExtract.Width, btnNavExtract.Height - 2);
+                    using (var pen = new Pen(NightreignTheme.GoldRune, 3f))
+                    {
+                        e.Graphics.DrawLine(pen, 4, btnNavExtract.Height - 2, btnNavExtract.Width - 4, btnNavExtract.Height - 2);
+                    }
+                    using (var pen = new Pen(NightreignTheme.BorderSubtle, 1f))
+                    {
+                        e.Graphics.DrawRectangle(pen, 0, 0, btnNavExtract.Width - 1, btnNavExtract.Height - 1);
+                    }
                 }
             };
 
             btnNavBuilder = new Button
             {
                 Text = "⚱️ Vessel Builder",
-                Location = new Point(175, 0),
-                Width = 195,
-                Height = 38,
-                BackColor = Color.FromArgb(24, 27, 35),
-                ForeColor = Color.FromArgb(170, 175, 190),
+                Location = new Point(205, 4),
+                Width = 205,
+                Height = 36,
+                BackColor = NightreignTheme.BgDark,
+                ForeColor = NightreignTheme.TextMuted,
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
                 UseMnemonic = false,
@@ -1207,23 +1316,32 @@ namespace NightreignRelicExtractor
             };
             btnNavBuilder.FlatAppearance.BorderSize = 0;
             btnNavBuilder.Click += (s, e) => ShowTab(1);
+            btnNavBuilder.MouseEnter += (s, e) => { if (btnNavBuilder.Tag as string != "active") btnNavBuilder.ForeColor = NightreignTheme.TextPrimary; };
+            btnNavBuilder.MouseLeave += (s, e) => { if (btnNavBuilder.Tag as string != "active") btnNavBuilder.ForeColor = NightreignTheme.TextMuted; };
             btnNavBuilder.Paint += (s, e) =>
             {
-                if (btnNavBuilder.Tag as string == "active")
+                bool isActive = (btnNavBuilder.Tag as string == "active");
+                if (isActive)
                 {
-                    using (var pen = new Pen(Color.FromArgb(212, 175, 55), 3))
-                        e.Graphics.DrawLine(pen, 0, btnNavBuilder.Height - 2, btnNavBuilder.Width, btnNavBuilder.Height - 2);
+                    using (var pen = new Pen(NightreignTheme.GoldRune, 3f))
+                    {
+                        e.Graphics.DrawLine(pen, 4, btnNavBuilder.Height - 2, btnNavBuilder.Width - 4, btnNavBuilder.Height - 2);
+                    }
+                    using (var pen = new Pen(NightreignTheme.BorderSubtle, 1f))
+                    {
+                        e.Graphics.DrawRectangle(pen, 0, 0, btnNavBuilder.Width - 1, btnNavBuilder.Height - 1);
+                    }
                 }
             };
 
             btnNavOverlay = new Button
             {
                 Text = "⚔️ Loadouts & Overlay (F10)",
-                Location = new Point(370, 0),
-                Width = 250,
-                Height = 38,
-                BackColor = Color.FromArgb(24, 27, 35),
-                ForeColor = Color.FromArgb(170, 175, 190),
+                Location = new Point(416, 4),
+                Width = 260,
+                Height = 36,
+                BackColor = NightreignTheme.BgDark,
+                ForeColor = NightreignTheme.TextMuted,
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
                 UseMnemonic = false,
@@ -1231,12 +1349,21 @@ namespace NightreignRelicExtractor
             };
             btnNavOverlay.FlatAppearance.BorderSize = 0;
             btnNavOverlay.Click += (s, e) => ShowTab(2);
+            btnNavOverlay.MouseEnter += (s, e) => { if (btnNavOverlay.Tag as string != "active") btnNavOverlay.ForeColor = NightreignTheme.TextPrimary; };
+            btnNavOverlay.MouseLeave += (s, e) => { if (btnNavOverlay.Tag as string != "active") btnNavOverlay.ForeColor = NightreignTheme.TextMuted; };
             btnNavOverlay.Paint += (s, e) =>
             {
-                if (btnNavOverlay.Tag as string == "active")
+                bool isActive = (btnNavOverlay.Tag as string == "active");
+                if (isActive)
                 {
-                    using (var pen = new Pen(Color.FromArgb(212, 175, 55), 3))
-                        e.Graphics.DrawLine(pen, 0, btnNavOverlay.Height - 2, btnNavOverlay.Width, btnNavOverlay.Height - 2);
+                    using (var pen = new Pen(NightreignTheme.GoldRune, 3f))
+                    {
+                        e.Graphics.DrawLine(pen, 4, btnNavOverlay.Height - 2, btnNavOverlay.Width - 4, btnNavOverlay.Height - 2);
+                    }
+                    using (var pen = new Pen(NightreignTheme.BorderSubtle, 1f))
+                    {
+                        e.Graphics.DrawRectangle(pen, 0, 0, btnNavOverlay.Width - 1, btnNavOverlay.Height - 1);
+                    }
                 }
             };
 
@@ -1249,15 +1376,22 @@ namespace NightreignRelicExtractor
             {
                 Dock = DockStyle.Top,
                 Height = 58,
-                BackColor = Color.FromArgb(20, 23, 30),
+                BackColor = NightreignTheme.BgCard,
                 Padding = new Padding(18, 6, 18, 6)
+            };
+            pnlFileBar.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(NightreignTheme.BorderSubtle, 1))
+                {
+                    e.Graphics.DrawLine(pen, 0, pnlFileBar.Height - 1, pnlFileBar.Width, pnlFileBar.Height - 1);
+                }
             };
 
             lblFilePrompt = new Label
             {
                 Text = Localization.Get("SaveFilePrompt"),
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(200, 205, 220),
+                ForeColor = NightreignTheme.TextPrimary,
                 AutoSize = true,
                 Location = new Point(16, 6)
             };
@@ -1266,10 +1400,10 @@ namespace NightreignRelicExtractor
             txtFilePath = new TextBox
             {
                 Location = new Point(18, 26),
-                Width = 665,
+                Width = 680,
                 Height = 26,
-                BackColor = Color.FromArgb(32, 36, 46),
-                ForeColor = Color.FromArgb(240, 240, 240),
+                BackColor = NightreignTheme.BgInput,
+                ForeColor = NightreignTheme.TextPrimary,
                 BorderStyle = BorderStyle.FixedSingle,
                 Font = new Font("Segoe UI", 9.5f)
             };
@@ -1311,33 +1445,26 @@ namespace NightreignRelicExtractor
             btnBrowse = new Button
             {
                 Text = Localization.Get("Browse"),
-                Location = new Point(695, 25),
-                Width = 105,
+                Location = new Point(710, 25),
+                Width = 110,
                 Height = 27,
-                BackColor = Color.FromArgb(42, 47, 60),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
-            btnBrowse.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 90);
+            NightreignTheme.StyleSecondaryButton(btnBrowse);
             btnBrowse.Click += BtnBrowse_Click;
             pnlFileBar.Controls.Add(btnBrowse);
 
             btnAutoDetect = new Button
             {
                 Text = Localization.Get("AutoDetect"),
-                Location = new Point(810, 25),
-                Width = 115,
+                Location = new Point(830, 25),
+                Width = 120,
                 Height = 27,
-                BackColor = Color.FromArgb(42, 47, 60),
-                ForeColor = Color.FromArgb(175, 195, 255),
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
-
-            btnAutoDetect.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 90);
+            NightreignTheme.StylePrimaryBlueButton(btnAutoDetect);
             btnAutoDetect.Click += (s, e) => { TryAutoDetectFile(true); AutoSeedDefaultPresets(); RefreshMainPresets(); LoadSelectedVesselData(); };
             pnlFileBar.Controls.Add(btnAutoDetect);
 
@@ -1359,16 +1486,12 @@ namespace NightreignRelicExtractor
 
         public void ShowTab(int tabIndex)
         {
-            // Active tab: brighter gold text + slightly lighter background
-            // Inactive tabs: muted slate text + dark background
             Action<Button, bool> setTabStyle = (btn, active) =>
             {
-                btn.BackColor = active ? Color.FromArgb(36, 40, 52) : Color.FromArgb(24, 27, 35);
-                btn.ForeColor = active ? Color.FromArgb(220, 185, 65) : Color.FromArgb(155, 160, 175);
-                // Use the tag to indicate active for custom paint underline
+                btn.BackColor = active ? NightreignTheme.BgCard : NightreignTheme.BgDark;
+                btn.ForeColor = active ? NightreignTheme.GoldRune : NightreignTheme.TextMuted;
                 btn.Tag = active ? "active" : "inactive";
-                btn.FlatAppearance.BorderSize = active ? 0 : 0;
-                btn.Invalidate(); // trigger repaint for underline
+                btn.Invalidate(); // trigger repaint for glowing indicator
             };
 
             setTabStyle(btnNavExtract, tabIndex == 0);
@@ -1404,10 +1527,10 @@ namespace NightreignRelicExtractor
 
         private void InitializeExtractView()
         {
-            pnlExtractView = new Panel
+            pnlExtractView = new DoubleBufferedPanel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(20, 22, 28),
+                BackColor = NightreignTheme.BgVoid,
                 Padding = new Padding(18, 8, 18, 10)
             };
 
@@ -1415,16 +1538,12 @@ namespace NightreignRelicExtractor
             {
                 Text = "Extract Relics",
                 Location = new Point(18, 8),
-                Width = 906,
-                Height = 38,
-                BackColor = Color.FromArgb(200, 160, 45),
-                ForeColor = Color.FromArgb(15, 15, 20),
+                Width = 926,
+                Height = 40,
                 Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
-            btnExtract.FlatAppearance.BorderColor = Color.FromArgb(235, 195, 80);
+            NightreignTheme.StyleGoldButton(btnExtract);
             btnExtract.Click += BtnExtract_Click;
             pnlExtractView.Controls.Add(btnExtract);
 
@@ -1432,23 +1551,23 @@ namespace NightreignRelicExtractor
             {
                 Text = "Ready. Select a save file and click 'Extract Relics'.",
                 Font = new Font("Segoe UI", 9f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(150, 220, 150),
+                ForeColor = NightreignTheme.TextHighlight,
                 AutoSize = true,
-                Location = new Point(18, 52)
+                Location = new Point(18, 54)
             };
             pnlExtractView.Controls.Add(lblStatus);
 
             txtResult = new TextBox
             {
-                Location = new Point(18, 74),
-                Width = 906,
-                Height = 360,
+                Location = new Point(18, 76),
+                Width = 926,
+                Height = 365,
                 Multiline = true,
                 ReadOnly = true,
                 ScrollBars = ScrollBars.Vertical,
-                BackColor = Color.FromArgb(14, 16, 21),
-                ForeColor = Color.FromArgb(225, 230, 240),
-                Font = new Font("Consolas", 9.5f),
+                BackColor = Color.FromArgb(12, 14, 20),
+                ForeColor = NightreignTheme.TextPrimary,
+                Font = NightreignTheme.FontCode,
                 BorderStyle = BorderStyle.FixedSingle
             };
             pnlExtractView.Controls.Add(txtResult);
@@ -1456,79 +1575,66 @@ namespace NightreignRelicExtractor
             btnOpenCsv = new Button
             {
                 Text = "Open CSV",
-                Location = new Point(18, 444),
-                Width = 110,
+                Location = new Point(18, 450),
+                Width = 115,
                 Height = 34,
-                BackColor = Color.FromArgb(40, 45, 55),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 Enabled = false,
                 Cursor = Cursors.Hand
             };
-            btnOpenCsv.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 90);
+            NightreignTheme.StyleSecondaryButton(btnOpenCsv);
             btnOpenCsv.Click += (s, e) => { if (lastResult != null && File.Exists(lastResult.CsvPath)) Process.Start(lastResult.CsvPath); };
             pnlExtractView.Controls.Add(btnOpenCsv);
 
             btnOpenExcel = new Button
             {
                 Text = "Open Excel",
-                Location = new Point(136, 444),
-                Width = 115,
+                Location = new Point(141, 450),
+                Width = 120,
                 Height = 34,
-                BackColor = Color.FromArgb(40, 45, 55),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 Enabled = false,
                 Cursor = Cursors.Hand
             };
-            btnOpenExcel.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 90);
+            NightreignTheme.StyleSecondaryButton(btnOpenExcel);
             btnOpenExcel.Click += (s, e) => { if (lastResult != null && File.Exists(lastResult.XlsxPath)) Process.Start(lastResult.XlsxPath); };
             pnlExtractView.Controls.Add(btnOpenExcel);
 
             btnOpenFolder = new Button
             {
                 Text = "Open Folder",
-                Location = new Point(259, 444),
-                Width = 120,
+                Location = new Point(269, 450),
+                Width = 125,
                 Height = 34,
-                BackColor = Color.FromArgb(40, 45, 55),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                 Enabled = false,
                 Cursor = Cursors.Hand
             };
-            btnOpenFolder.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 90);
+            NightreignTheme.StyleSecondaryButton(btnOpenFolder);
             btnOpenFolder.Click += (s, e) => { if (lastResult != null && Directory.Exists(lastResult.SaveDirectory)) Process.Start("explorer.exe", lastResult.SaveDirectory); };
             pnlExtractView.Controls.Add(btnOpenFolder);
 
             btnGoToBuilder = new Button
             {
                 Text = "⚱️ Open Vessel & Relic Builder ➔",
-                Location = new Point(387, 444),
-                Width = 537,
+                Location = new Point(402, 450),
+                Width = 542,
                 Height = 34,
-                BackColor = Color.FromArgb(40, 65, 95),
-                ForeColor = Color.FromArgb(190, 225, 255),
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
-            btnGoToBuilder.FlatAppearance.BorderColor = Color.FromArgb(70, 110, 160);
+            NightreignTheme.StylePrimaryBlueButton(btnGoToBuilder);
             btnGoToBuilder.Click += (s, e) => ShowTab(1);
             pnlExtractView.Controls.Add(btnGoToBuilder);
         }
 
         private void InitializeBuilderView()
         {
-            pnlBuilderView = new Panel
+            pnlBuilderView = new DoubleBufferedPanel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(20, 22, 28),
-                Padding = new Padding(14, 6, 14, 10),
+                BackColor = NightreignTheme.BgVoid,
+                Padding = new Padding(16, 6, 16, 10),
                 Visible = false,
                 AutoScroll = true
             };
@@ -1536,19 +1642,26 @@ namespace NightreignRelicExtractor
             // Top selection bar
             Panel pnlTopBar = new Panel
             {
-                Location = new Point(14, 4),
-                Width = 906,
-                Height = 40,
-                BackColor = Color.FromArgb(26, 30, 40)
+                Location = new Point(16, 4),
+                Width = 926,
+                Height = 42,
+                BackColor = NightreignTheme.BgCard
+            };
+            pnlTopBar.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(NightreignTheme.BorderSubtle, 1))
+                {
+                    e.Graphics.DrawRectangle(pen, 0, 0, pnlTopBar.Width - 1, pnlTopBar.Height - 1);
+                }
             };
 
             Label lblChar = new Label
             {
                 Text = "Character:",
-                Location = new Point(10, 10),
+                Location = new Point(12, 11),
                 AutoSize = true,
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(220, 185, 65),
+                ForeColor = NightreignTheme.GoldRune,
                 UseMnemonic = false
             };
             pnlTopBar.Controls.Add(lblChar);
@@ -1556,11 +1669,12 @@ namespace NightreignRelicExtractor
             cmbBuilderChar = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Location = new Point(85, 7),
-                Width = 125,
-                BackColor = Color.FromArgb(16, 18, 24),
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9.5f)
+                Location = new Point(90, 8),
+                Width = 135,
+                BackColor = NightreignTheme.BgInput,
+                ForeColor = NightreignTheme.TextPrimary,
+                Font = new Font("Segoe UI", 9.5f),
+                FlatStyle = FlatStyle.Flat
             };
             foreach (var ch in SaveRelicWriter.CHARACTERS) cmbBuilderChar.Items.Add(ch);
             cmbBuilderChar.SelectedIndex = 0;
@@ -1570,10 +1684,10 @@ namespace NightreignRelicExtractor
             Label lblVessel = new Label
             {
                 Text = "Vessel / Cup:",
-                Location = new Point(222, 10),
+                Location = new Point(238, 11),
                 AutoSize = true,
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(220, 185, 65),
+                ForeColor = NightreignTheme.GoldRune,
                 UseMnemonic = false
             };
             pnlTopBar.Controls.Add(lblVessel);
@@ -1581,11 +1695,12 @@ namespace NightreignRelicExtractor
             cmbBuilderVessel = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Location = new Point(310, 7),
-                Width = 150,
-                BackColor = Color.FromArgb(16, 18, 24),
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9.5f)
+                Location = new Point(330, 8),
+                Width = 160,
+                BackColor = NightreignTheme.BgInput,
+                ForeColor = NightreignTheme.TextPrimary,
+                Font = new Font("Segoe UI", 9.5f),
+                FlatStyle = FlatStyle.Flat
             };
             foreach (var vn in SaveRelicWriter.VESSEL_NAMES) cmbBuilderVessel.Items.Add(vn);
             cmbBuilderVessel.SelectedIndex = 0;
@@ -1595,10 +1710,10 @@ namespace NightreignRelicExtractor
             lblBuilderActiveStatus = new Label
             {
                 Text = "🟢 Active In-Game Vessel",
-                Location = new Point(475, 10),
+                Location = new Point(505, 11),
                 AutoSize = true,
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(90, 220, 120),
+                Font = NightreignTheme.FontSmallBold,
+                ForeColor = NightreignTheme.TextHighlight,
                 UseMnemonic = false
             };
             pnlTopBar.Controls.Add(lblBuilderActiveStatus);
@@ -1606,16 +1721,13 @@ namespace NightreignRelicExtractor
             btnBuilderReload = new Button
             {
                 Text = "🔄 Reload",
-                Location = new Point(815, 6),
-                Width = 82,
-                Height = 27,
-                BackColor = Color.FromArgb(40, 48, 62),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
+                Location = new Point(830, 7),
+                Width = 86,
+                Height = 28,
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
-            btnBuilderReload.FlatAppearance.BorderColor = Color.FromArgb(65, 80, 105);
+            NightreignTheme.StyleSecondaryButton(btnBuilderReload);
             btnBuilderReload.Click += (s, e) => LoadSelectedVesselData();
             pnlTopBar.Controls.Add(btnBuilderReload);
 
@@ -1624,19 +1736,26 @@ namespace NightreignRelicExtractor
             // Sub-bar
             Panel pnlSubBar = new Panel
             {
-                Location = new Point(14, 48),
-                Width = 906,
-                Height = 26,
-                BackColor = Color.FromArgb(16, 18, 24)
+                Location = new Point(16, 50),
+                Width = 926,
+                Height = 28,
+                BackColor = NightreignTheme.BgDark
+            };
+            pnlSubBar.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(NightreignTheme.BorderSubtle, 1))
+                {
+                    e.Graphics.DrawRectangle(pen, 0, 0, pnlSubBar.Width - 1, pnlSubBar.Height - 1);
+                }
             };
 
             chkBuilderSetActive = new CheckBox
             {
                 Text = "Set as Active In-Game Vessel when saving",
                 Checked = true,
-                Location = new Point(10, 3),
+                Location = new Point(12, 4),
                 Width = 340,
-                ForeColor = Color.FromArgb(120, 220, 160),
+                ForeColor = NightreignTheme.TextHighlight,
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
@@ -1644,23 +1763,23 @@ namespace NightreignRelicExtractor
 
             Label lblSubHint = new Label
             {
-                Text = "Click 'Change...' on any slot to select from your save relics (hover to view full effect details)",
-                Location = new Point(360, 5),
+                Text = "Click 'Change...' on any slot to select from save relics (hover to view full effect details)",
+                Location = new Point(360, 6),
                 AutoSize = true,
                 Font = new Font("Segoe UI", 8f, FontStyle.Italic),
-                ForeColor = Color.FromArgb(160, 170, 185)
+                ForeColor = NightreignTheme.TextMuted
             };
             pnlSubBar.Controls.Add(lblSubHint);
 
             pnlBuilderView.Controls.Add(pnlSubBar);
 
             // Slots Container
-            pnlBuilderSlots = new Panel
+            pnlBuilderSlots = new DoubleBufferedPanel
             {
-                Location = new Point(14, 76),
-                Width = 906,
-                Height = 345,
-                BackColor = Color.FromArgb(20, 22, 28)
+                Location = new Point(16, 82),
+                Width = 926,
+                Height = 360,
+                BackColor = NightreignTheme.BgVoid
             };
 
             lblBuilderNormalHeader = new Label
@@ -1668,48 +1787,57 @@ namespace NightreignRelicExtractor
                 Text = Localization.Get("NormalSlotsTitle"),
                 Location = new Point(0, 2),
                 AutoSize = true,
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(220, 185, 65)
+                Font = NightreignTheme.FontSection,
+                ForeColor = NightreignTheme.GoldRune
             };
             pnlBuilderSlots.Controls.Add(lblBuilderNormalHeader);
 
             lblBuilderDeepHeader = new Label
             {
                 Text = Localization.Get("DeepSlotsTitle"),
-                Location = new Point(0, 172),
+                Location = new Point(0, 176),
                 AutoSize = true,
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(150, 180, 255)
+                Font = NightreignTheme.FontSection,
+                ForeColor = NightreignTheme.AffinityBlue
             };
             pnlBuilderSlots.Controls.Add(lblBuilderDeepHeader);
 
-
-            int cardWidth = 294;
-            int cardHeight = 148;
+            int cardWidth = 300;
+            int cardHeight = 152;
 
             for (int i = 0; i < 6; i++)
             {
                 int row = (i < 3) ? 0 : 1;
                 int col = i % 3;
-                int x = (col == 0) ? 0 : (col == 1 ? 306 : 612);
-                int y = (row == 0) ? 20 : 192;
+                int x = (col == 0) ? 0 : (col == 1 ? 313 : 626);
+                int y = (row == 0) ? 20 : 196;
                 int slotIdx = i;
 
-                Panel card = new Panel
+                DoubleBufferedPanel card = new DoubleBufferedPanel
                 {
                     Location = new Point(x, y),
                     Width = cardWidth,
                     Height = cardHeight,
-                    BackColor = Color.FromArgb(26, 29, 38)
+                    BackColor = NightreignTheme.BgCard
+                };
+
+                card.MouseEnter += (s, e) => { card.Tag = "hover"; card.Invalidate(); };
+                card.MouseLeave += (s, e) =>
+                {
+                    if (!card.ClientRectangle.Contains(card.PointToClient(Cursor.Position)))
+                    {
+                        card.Tag = null;
+                        card.Invalidate();
+                    }
                 };
 
                 Label lblHeader = new Label
                 {
                     Text = string.Format("Slot {0} • {1}", i + 1, (i < 3) ? "Normal" : "Deep"),
-                    Location = new Point(10, 6),
+                    Location = new Point(38, 6),
                     AutoSize = true,
-                    Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                    ForeColor = Color.FromArgb(180, 190, 210),
+                    Font = NightreignTheme.FontSmallBold,
+                    ForeColor = NightreignTheme.TextMuted,
                     UseMnemonic = false
                 };
                 card.Controls.Add(lblHeader);
@@ -1718,11 +1846,11 @@ namespace NightreignRelicExtractor
                 Label lblReq = new Label
                 {
                     Text = "⚪ ANY",
-                    Location = new Point(175, 6),
-                    Width = 108,
+                    Location = new Point(160, 6),
+                    Width = 130,
                     TextAlign = ContentAlignment.TopRight,
-                    Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                    ForeColor = Color.White,
+                    Font = NightreignTheme.FontSmallBold,
+                    ForeColor = NightreignTheme.TextPrimary,
                     UseMnemonic = false
                 };
                 card.Controls.Add(lblReq);
@@ -1731,12 +1859,12 @@ namespace NightreignRelicExtractor
                 Label lblName = new Label
                 {
                     Text = "[ Empty Slot ]",
-                    Location = new Point(10, 25),
-                    Width = 274,
+                    Location = new Point(38, 24),
+                    Width = 252,
                     Height = 20,
                     AutoEllipsis = true,
                     Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                    ForeColor = Color.FromArgb(140, 145, 160),
+                    ForeColor = NightreignTheme.TextSubtle,
                     UseMnemonic = false
                 };
                 card.Controls.Add(lblName);
@@ -1745,12 +1873,12 @@ namespace NightreignRelicExtractor
                 Label lblEff = new Label
                 {
                     Text = "Click 'Change...' to equip a relic",
-                    Location = new Point(10, 47),
-                    Width = 274,
+                    Location = new Point(12, 48),
+                    Width = 276,
                     Height = 64,
                     AutoEllipsis = true,
-                    Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
-                    ForeColor = Color.FromArgb(186, 230, 253),
+                    Font = new Font("Segoe UI", 8.25f),
+                    ForeColor = NightreignTheme.TextEffects,
                     UseMnemonic = false
                 };
                 card.Controls.Add(lblEff);
@@ -1759,17 +1887,13 @@ namespace NightreignRelicExtractor
                 Button btnChange = new Button
                 {
                     Text = "🔍 Change...",
-                    Location = new Point(10, 114),
-                    Width = 186,
-                    Height = 26,
-                    BackColor = Color.FromArgb(38, 45, 60),
-                    ForeColor = Color.FromArgb(210, 225, 250),
+                    Location = new Point(10, 116),
+                    Width = 190,
+                    Height = 28,
                     Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                    FlatStyle = FlatStyle.Flat,
-                    UseMnemonic = false,
                     Cursor = Cursors.Hand
                 };
-                btnChange.FlatAppearance.BorderColor = Color.FromArgb(65, 75, 95);
+                NightreignTheme.StylePrimaryBlueButton(btnChange);
                 btnChange.Click += (s, e) => OpenRelicPicker(slotIdx);
                 card.Controls.Add(btnChange);
                 btnSlotChanges[i] = btnChange;
@@ -1777,28 +1901,32 @@ namespace NightreignRelicExtractor
                 Button btnClear = new Button
                 {
                     Text = "✕ Clear",
-                    Location = new Point(202, 114),
-                    Width = 82,
-                    Height = 26,
-                    BackColor = Color.FromArgb(50, 32, 36),
-                    ForeColor = Color.FromArgb(240, 140, 140),
+                    Location = new Point(206, 116),
+                    Width = 84,
+                    Height = 28,
                     Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                    FlatStyle = FlatStyle.Flat,
-                    UseMnemonic = false,
                     Cursor = Cursors.Hand
                 };
-                btnClear.FlatAppearance.BorderColor = Color.FromArgb(85, 45, 50);
+                NightreignTheme.StyleDangerButton(btnClear);
                 btnClear.Click += (s, e) => ClearSlot(slotIdx);
                 card.Controls.Add(btnClear);
                 btnSlotClears[i] = btnClear;
 
                 card.Paint += (s, e) =>
                 {
-                    Color bCol = GetSlotBorderColor(slotIdx);
-                    using (var pen = new Pen(bCol, 1))
+                    Color affCol = GetSlotBorderColor(slotIdx);
+                    bool isHover = (card.Tag as string == "hover");
+
+                    // Card border
+                    Color borderColor = isHover ? NightreignTheme.GoldHover : (affCol != NightreignTheme.BorderSubtle ? affCol : NightreignTheme.BorderSubtle);
+                    using (var pen = new Pen(borderColor, isHover ? 1.5f : 1f))
                     {
                         e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
                     }
+
+                    // Talisman Socket / Glowing Affinity Ring on left
+                    bool hasRelic = (currentVesselDetail != null && slotIdx < currentVesselDetail.Slots.Count && currentVesselDetail.Slots[slotIdx].RelicId != 0);
+                    NightreignTheme.DrawGlowingAffinityRing(e.Graphics, 20, 33, 8, affCol, hasRelic);
                 };
 
                 pnlBuilderSlots.Controls.Add(card);
@@ -1810,77 +1938,61 @@ namespace NightreignRelicExtractor
             // Bottom Action Bar
             Panel pnlBottomBar = new Panel
             {
-                Location = new Point(14, 426),
-                Width = 906,
-                Height = 82,
-                BackColor = Color.FromArgb(20, 22, 28)
+                Location = new Point(16, 448),
+                Width = 926,
+                Height = 84,
+                BackColor = NightreignTheme.BgVoid
             };
 
             btnBuilderSave = new Button
             {
                 Text = Localization.Get("EquipAndSave"),
                 Location = new Point(0, 2),
-                Width = 260,
-                Height = 34,
-                BackColor = Color.FromArgb(200, 160, 45),
-                ForeColor = Color.FromArgb(15, 15, 20),
+                Width = 265,
+                Height = 36,
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
-            btnBuilderSave.FlatAppearance.BorderColor = Color.FromArgb(235, 195, 80);
+            NightreignTheme.StyleGoldButton(btnBuilderSave);
             btnBuilderSave.Click += BtnBuilderSave_Click;
             pnlBottomBar.Controls.Add(btnBuilderSave);
 
             btnBuilderPreset = new Button
             {
                 Text = Localization.Get("SaveAsPreset"),
-                Location = new Point(270, 2),
-                Width = 180,
-                Height = 34,
-                BackColor = Color.FromArgb(35, 55, 80),
-                ForeColor = Color.FromArgb(180, 220, 255),
+                Location = new Point(275, 2),
+                Width = 185,
+                Height = 36,
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
-            btnBuilderPreset.FlatAppearance.BorderColor = Color.FromArgb(60, 95, 140);
+            NightreignTheme.StylePrimaryBlueButton(btnBuilderPreset);
             btnBuilderPreset.Click += BtnBuilderPreset_Click;
             pnlBottomBar.Controls.Add(btnBuilderPreset);
 
             btnBuilderBrowsePresets = new Button
             {
                 Text = Localization.Get("BrowsePresets"),
-                Location = new Point(460, 2),
-                Width = 180,
-                Height = 34,
-                BackColor = Color.FromArgb(45, 50, 68),
-                ForeColor = Color.FromArgb(225, 230, 245),
+                Location = new Point(470, 2),
+                Width = 185,
+                Height = 36,
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
-            btnBuilderBrowsePresets.FlatAppearance.BorderColor = Color.FromArgb(75, 85, 110);
+            NightreignTheme.StyleSecondaryButton(btnBuilderBrowsePresets);
             btnBuilderBrowsePresets.Click += BtnBuilderBrowsePresets_Click;
             pnlBottomBar.Controls.Add(btnBuilderBrowsePresets);
 
             btnBuilderClearAll = new Button
             {
                 Text = Localization.Get("ClearAllSlots"),
-                Location = new Point(650, 2),
-                Width = 256,
-                Height = 34,
-                BackColor = Color.FromArgb(42, 45, 55),
-                ForeColor = Color.FromArgb(220, 225, 235),
+                Location = new Point(665, 2),
+                Width = 261,
+                Height = 36,
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
-            btnBuilderClearAll.FlatAppearance.BorderColor = Color.FromArgb(70, 75, 90);
+            NightreignTheme.StyleSecondaryButton(btnBuilderClearAll);
             btnBuilderClearAll.Click += BtnBuilderClearAll_Click;
             pnlBottomBar.Controls.Add(btnBuilderClearAll);
 
@@ -1888,63 +2000,50 @@ namespace NightreignRelicExtractor
             btnBuilderCopyAIPrompt = new Button
             {
                 Text = Localization.Get("CopyAIPrompt"),
-                Location = new Point(0, 42),
-                Width = 220,
+                Location = new Point(0, 44),
+                Width = 225,
                 Height = 32,
-                BackColor = Color.FromArgb(30, 60, 85),
-                ForeColor = Color.FromArgb(190, 230, 255),
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
-            btnBuilderCopyAIPrompt.FlatAppearance.BorderColor = Color.FromArgb(60, 110, 155);
+            NightreignTheme.StylePrimaryBlueButton(btnBuilderCopyAIPrompt);
             btnBuilderCopyAIPrompt.Click += BtnBuilderCopyAIPrompt_Click;
             pnlBottomBar.Controls.Add(btnBuilderCopyAIPrompt);
 
             btnBuilderImportAI = new Button
             {
                 Text = Localization.Get("ImportAIBuild"),
-                Location = new Point(230, 42),
-                Width = 220,
+                Location = new Point(235, 44),
+                Width = 225,
                 Height = 32,
-                BackColor = Color.FromArgb(40, 55, 45),
-                ForeColor = Color.FromArgb(175, 240, 195),
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
-            btnBuilderImportAI.FlatAppearance.BorderColor = Color.FromArgb(70, 120, 90);
+            NightreignTheme.StyleSuccessButton(btnBuilderImportAI);
             btnBuilderImportAI.Click += BtnBuilderImportAI_Click;
             pnlBottomBar.Controls.Add(btnBuilderImportAI);
 
             lblBuilderSafety = new Label
             {
                 Text = Localization.Get("BackupNotice"),
-                Location = new Point(460, 50),
+                Location = new Point(470, 52),
                 AutoSize = true,
                 Font = new Font("Segoe UI", 8f, FontStyle.Italic),
-                ForeColor = Color.FromArgb(120, 210, 140)
+                ForeColor = NightreignTheme.TextHighlight
             };
             pnlBottomBar.Controls.Add(lblBuilderSafety);
 
             pnlBuilderView.Controls.Add(pnlBottomBar);
         }
 
-
         private Color GetSlotBorderColor(int slotIndex)
         {
             if (currentVesselDetail != null && slotIndex >= 0 && slotIndex < currentVesselDetail.Slots.Count)
             {
                 string req = currentVesselDetail.Slots[slotIndex].RequiredColor;
-                if (string.Equals(req, "Red", StringComparison.OrdinalIgnoreCase)) return Color.FromArgb(180, 50, 50);
-                if (string.Equals(req, "Blue", StringComparison.OrdinalIgnoreCase)) return Color.FromArgb(60, 110, 190);
-                if (string.Equals(req, "Yellow", StringComparison.OrdinalIgnoreCase)) return Color.FromArgb(190, 150, 45);
-                if (string.Equals(req, "Green", StringComparison.OrdinalIgnoreCase)) return Color.FromArgb(45, 160, 80);
-                return Color.FromArgb(110, 90, 150); // Any
+                return NightreignTheme.GetAffinityColor(req);
             }
-            return Color.FromArgb(70, 75, 90);
+            return NightreignTheme.BorderSubtle;
         }
 
         private void LoadSelectedVesselData(bool autoSelectActiveVessel = false)
@@ -2013,13 +2112,9 @@ namespace NightreignRelicExtractor
 
             if (lblSlotReqColors[s] != null)
             {
-                string c = slot.RequiredColor;
-                string icon = "⚪ ANY";
-                Color fCol = Color.FromArgb(200, 205, 220);
-                if (c == "Red") { icon = "🔴 RED"; fCol = Color.FromArgb(240, 90, 90); }
-                else if (c == "Blue") { icon = "🔵 BLUE"; fCol = Color.FromArgb(90, 160, 240); }
-                else if (c == "Yellow") { icon = "🟡 YELLOW"; fCol = Color.FromArgb(235, 195, 70); }
-                else if (c == "Green") { icon = "🟢 GREEN"; fCol = Color.FromArgb(90, 215, 120); }
+                string c = slot.RequiredColor ?? "Any";
+                string icon = NightreignTheme.GetAffinityIcon(c) + " " + c.ToUpper();
+                Color fCol = NightreignTheme.GetAffinityColor(c);
 
                 lblSlotReqColors[s].Text = icon;
                 lblSlotReqColors[s].ForeColor = fCol;
@@ -2030,16 +2125,12 @@ namespace NightreignRelicExtractor
                 if (slot.RelicId != 0)
                 {
                     lblSlotRelicNames[s].Text = slot.RelicName;
-                    if (slot.RelicColor == "Red") lblSlotRelicNames[s].ForeColor = Color.FromArgb(248, 113, 113);
-                    else if (slot.RelicColor == "Blue") lblSlotRelicNames[s].ForeColor = Color.FromArgb(96, 165, 250);
-                    else if (slot.RelicColor == "Yellow") lblSlotRelicNames[s].ForeColor = Color.FromArgb(251, 191, 36);
-                    else if (slot.RelicColor == "Green") lblSlotRelicNames[s].ForeColor = Color.FromArgb(74, 222, 128);
-                    else lblSlotRelicNames[s].ForeColor = Color.FromArgb(241, 245, 249);
+                    lblSlotRelicNames[s].ForeColor = NightreignTheme.GetAffinityColor(slot.RelicColor);
                 }
                 else
                 {
                     lblSlotRelicNames[s].Text = "[ Empty Slot ]";
-                    lblSlotRelicNames[s].ForeColor = Color.FromArgb(130, 135, 150);
+                    lblSlotRelicNames[s].ForeColor = NightreignTheme.TextSubtle;
                 }
             }
 
@@ -2578,10 +2669,10 @@ namespace NightreignRelicExtractor
 
         private void InitializeOverlayView()
         {
-            pnlOverlayView = new Panel
+            pnlOverlayView = new DoubleBufferedPanel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(20, 22, 28),
+                BackColor = NightreignTheme.BgVoid,
                 Padding = new Padding(18, 6, 18, 10),
                 Visible = false
             };
@@ -2590,17 +2681,24 @@ namespace NightreignRelicExtractor
             Panel pnlInfo = new Panel
             {
                 Location = new Point(18, 6),
-                Width = 906,
+                Width = 926,
                 Height = 65,
-                BackColor = Color.FromArgb(26, 32, 44),
+                BackColor = NightreignTheme.BgCard,
                 Padding = new Padding(12, 6, 12, 6)
+            };
+            pnlInfo.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(NightreignTheme.BorderSubtle, 1))
+                {
+                    e.Graphics.DrawRectangle(pen, 0, 0, pnlInfo.Width - 1, pnlInfo.Height - 1);
+                }
             };
 
             Label lblInfoTitle = new Label
             {
                 Text = "⚡ SAVE-FILE LOADOUT PRESETS & IN-GAME OVERLAY",
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(220, 185, 65),
+                ForeColor = NightreignTheme.GoldRune,
                 AutoSize = true,
                 UseMnemonic = false,
                 Location = new Point(10, 6)
@@ -2611,7 +2709,7 @@ namespace NightreignRelicExtractor
             {
                 Text = "1. Press F10 in-game to toggle HUD overlay.  2. Click 'Apply' to swap relics in save.\n3. Quit to Main Menu and click 'Continue' to reload. (Other co-op players do NOT need this mod installed!)",
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(195, 205, 225),
+                ForeColor = NightreignTheme.TextMuted,
                 AutoSize = true,
                 UseMnemonic = false,
                 Location = new Point(10, 26)
@@ -2623,19 +2721,26 @@ namespace NightreignRelicExtractor
             Panel pnlBar = new Panel
             {
                 Location = new Point(18, 77),
-                Width = 906,
-                Height = 36,
-                BackColor = Color.FromArgb(16, 18, 24)
+                Width = 926,
+                Height = 38,
+                BackColor = NightreignTheme.BgDark
+            };
+            pnlBar.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(NightreignTheme.BorderSubtle, 1))
+                {
+                    e.Graphics.DrawRectangle(pen, 0, 0, pnlBar.Width - 1, pnlBar.Height - 1);
+                }
             };
 
             chkEnableHotkey = new CheckBox
             {
                 Text = "Enable F10 Hotkey",
                 Checked = true,
-                ForeColor = Color.FromArgb(100, 220, 140),
+                ForeColor = NightreignTheme.TextHighlight,
                 Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                Location = new Point(10, 6),
-                Width = 145,
+                Location = new Point(12, 7),
+                Width = 150,
                 Cursor = Cursors.Hand
             };
             pnlBar.Controls.Add(chkEnableHotkey);
@@ -2643,8 +2748,8 @@ namespace NightreignRelicExtractor
             Label lblFilter = new Label
             {
                 Text = "Filter:",
-                ForeColor = Color.FromArgb(170, 175, 190),
-                Location = new Point(165, 8),
+                ForeColor = NightreignTheme.TextMuted,
+                Location = new Point(175, 9),
                 AutoSize = true
             };
             pnlBar.Controls.Add(lblFilter);
@@ -2652,10 +2757,11 @@ namespace NightreignRelicExtractor
             cmbMainCharFilter = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Location = new Point(210, 5),
-                Width = 140,
-                BackColor = Color.FromArgb(34, 38, 50),
-                ForeColor = Color.White
+                Location = new Point(220, 6),
+                Width = 145,
+                BackColor = NightreignTheme.BgInput,
+                ForeColor = NightreignTheme.TextPrimary,
+                FlatStyle = FlatStyle.Flat
             };
             cmbMainCharFilter.Items.Add("All");
             foreach (var ch in SaveRelicWriter.CHARACTERS)
@@ -2669,68 +2775,55 @@ namespace NightreignRelicExtractor
             btnMainSnapshot = new Button
             {
                 Text = Localization.Get("SnapshotCurrent"),
-                Location = new Point(350, 4),
+                Location = new Point(375, 4),
                 Width = 195,
-                Height = 28,
-                BackColor = Color.FromArgb(35, 55, 80),
-                ForeColor = Color.FromArgb(180, 220, 255),
+                Height = 30,
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
-            btnMainSnapshot.FlatAppearance.BorderColor = Color.FromArgb(60, 95, 140);
+            NightreignTheme.StylePrimaryBlueButton(btnMainSnapshot);
             btnMainSnapshot.Click += BtnMainSnapshot_Click;
             pnlBar.Controls.Add(btnMainSnapshot);
 
             Button btnMainBrowse = new Button
             {
                 Text = Localization.Get("BrowsePresets"),
-                Location = new Point(555, 4),
+                Location = new Point(578, 4),
                 Width = 155,
-                Height = 28,
-                BackColor = Color.FromArgb(45, 50, 68),
-                ForeColor = Color.FromArgb(225, 230, 245),
+                Height = 30,
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
-            btnMainBrowse.FlatAppearance.BorderColor = Color.FromArgb(75, 85, 110);
+            NightreignTheme.StyleSecondaryButton(btnMainBrowse);
             btnMainBrowse.Click += BtnBuilderBrowsePresets_Click;
             pnlBar.Controls.Add(btnMainBrowse);
 
             btnMainOpenOverlay = new Button
             {
                 Text = "🎮 Open Overlay (F10)",
-                Location = new Point(720, 4),
+                Location = new Point(741, 4),
                 Width = 175,
-                Height = 28,
-                BackColor = Color.FromArgb(200, 160, 45),
-                ForeColor = Color.FromArgb(15, 15, 20),
+                Height = 30,
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat,
-                UseMnemonic = false,
                 Cursor = Cursors.Hand
             };
-
-            btnMainOpenOverlay.FlatAppearance.BorderColor = Color.FromArgb(235, 195, 80);
+            NightreignTheme.StyleGoldButton(btnMainOpenOverlay);
             btnMainOpenOverlay.Click += (s, e) => ToggleOverlay();
             pnlBar.Controls.Add(btnMainOpenOverlay);
 
             pnlOverlayView.Controls.Add(pnlBar);
 
             // Presets Cards Container
-            pnlMainPresetCards = new FlowLayoutPanel
+            pnlMainPresetCards = new DoubleBufferedFlowLayoutPanel
             {
-                Location = new Point(18, 120),
-                Width = 906,
-                Height = 350,
+                Location = new Point(18, 122),
+                Width = 926,
+                Height = 355,
                 AutoScroll = true,
                 FlowDirection = FlowDirection.TopDown,
                 WrapContents = false,
-                BackColor = Color.FromArgb(14, 16, 21),
-                Padding = new Padding(8)
+                BackColor = NightreignTheme.BgVoid,
+                Padding = new Padding(4)
             };
             pnlOverlayView.Controls.Add(pnlMainPresetCards);
 
@@ -2738,8 +2831,8 @@ namespace NightreignRelicExtractor
             {
                 Text = "Global Hotkey F10 active. You can toggle the overlay anytime while playing!",
                 Font = new Font("Segoe UI", 8.5f, FontStyle.Italic),
-                ForeColor = Color.FromArgb(150, 210, 150),
-                Location = new Point(18, 478),
+                ForeColor = NightreignTheme.TextHighlight,
+                Location = new Point(18, 485),
                 AutoSize = true
             };
             pnlOverlayView.Controls.Add(lblOverlayStatus);
@@ -2802,8 +2895,8 @@ namespace NightreignRelicExtractor
                 {
                     Text = "No presets saved yet. Click '💾 Snapshot Current Relics' above to capture your current in-game vessel build as a preset!",
                     Font = new Font("Segoe UI", 9.5f, FontStyle.Italic),
-                    ForeColor = Color.FromArgb(150, 155, 170),
-                    Width = 860,
+                    ForeColor = NightreignTheme.TextMuted,
+                    Width = 890,
                     Height = 80,
                     TextAlign = ContentAlignment.MiddleCenter
                 };
@@ -2813,63 +2906,74 @@ namespace NightreignRelicExtractor
             {
                 foreach (var preset in presets)
                 {
-                    Panel card = new Panel
+                    DoubleBufferedPanel card = new DoubleBufferedPanel
                     {
-                        Width = 880,
-                        Height = 72,
-                        BackColor = Color.FromArgb(24, 27, 36),
-                        Margin = new Padding(0, 0, 0, 6),
+                        Width = 900,
+                        Height = 76,
+                        BackColor = NightreignTheme.BgCard,
+                        Margin = new Padding(0, 0, 0, 8),
                         Padding = new Padding(8)
+                    };
+
+                    card.MouseEnter += (s, e) => { card.Tag = "hover"; card.Invalidate(); };
+                    card.MouseLeave += (s, e) =>
+                    {
+                        if (!card.ClientRectangle.Contains(card.PointToClient(Cursor.Position)))
+                        {
+                            card.Tag = null;
+                            card.Invalidate();
+                        }
                     };
 
                     card.Paint += (s, e) =>
                     {
-                        using (var pen = new Pen(Color.FromArgb(48, 54, 70), 1))
+                        bool isHover = (card.Tag as string == "hover");
+                        Color bColor = isHover ? NightreignTheme.GoldHover : NightreignTheme.BorderSubtle;
+                        using (var pen = new Pen(bColor, isHover ? 1.5f : 1f))
+                        {
                             e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
+                        }
                     };
 
                     Label lblName = new Label
                     {
                         Text = preset.Name,
-                        Font = new Font("Segoe UI", 11f, FontStyle.Bold),
-                        ForeColor = Color.FromArgb(225, 195, 95),
+                        Font = NightreignTheme.FontCardTitle,
+                        ForeColor = NightreignTheme.GoldRune,
                         AutoSize = true,
                         UseMnemonic = false,
-                        Location = new Point(10, 8)
+                        Location = new Point(12, 10)
                     };
                     card.Controls.Add(lblName);
 
                     Label lblSub = new Label
                     {
                         Text = string.Format("{0} • {1} ({2} Relics)", preset.CharacterName, preset.VesselName ?? "Active Vessel", preset.RelicIds.Count),
-                        Font = new Font("Segoe UI", 8.5f),
-                        ForeColor = Color.FromArgb(160, 165, 180),
+                        Font = NightreignTheme.FontSmall,
+                        ForeColor = NightreignTheme.TextMuted,
                         AutoSize = true,
                         UseMnemonic = false,
-                        Location = new Point(12, 34)
+                        Location = new Point(14, 38)
                     };
                     card.Controls.Add(lblSub);
 
                     // Relic indicators with full effect tooltips
                     FlowLayoutPanel pnlDots = new FlowLayoutPanel
                     {
-                        Location = new Point(280, 18),
-                        Size = new Size(390, 36),
+                        Location = new Point(275, 18),
+                        Size = new Size(345, 38),
                         FlowDirection = FlowDirection.LeftToRight,
-                        WrapContents = false
+                        WrapContents = false,
+                        BackColor = Color.Transparent
                     };
                     for (int i = 0; i < 6; i++)
                     {
-                        Color dotColor = Color.FromArgb(50, 55, 70);
+                        Color dotColor = Color.FromArgb(40, 46, 60);
                         string tip = "Slot " + (i + 1) + ": Empty";
                         if (i < preset.RelicIds.Count)
                         {
                             string col = (i < preset.RelicColors.Count) ? preset.RelicColors[i] : "";
-                            if (col == "Red") dotColor = Color.FromArgb(220, 80, 80);
-                            else if (col == "Blue") dotColor = Color.FromArgb(80, 150, 240);
-                            else if (col == "Yellow") dotColor = Color.FromArgb(240, 200, 70);
-                            else if (col == "Green") dotColor = Color.FromArgb(80, 210, 110);
-                            else dotColor = Color.FromArgb(180, 180, 180);
+                            dotColor = NightreignTheme.GetAffinityColor(col);
 
                             string rName = (i < preset.RelicNames.Count) ? preset.RelicNames[i] : ("Relic " + (i + 1));
                             string rEff = (preset.RelicEffects != null && i < preset.RelicEffects.Count) ? preset.RelicEffects[i] : "";
@@ -2877,13 +2981,13 @@ namespace NightreignRelicExtractor
                         }
                         Label dot = new Label
                         {
-                            Width = 24,
-                            Height = 24,
+                            Width = 26,
+                            Height = 26,
                             Margin = new Padding(0, 4, 8, 0),
                             BackColor = dotColor,
                             Text = string.Format("{0}", i + 1),
-                            ForeColor = Color.Black,
-                            Font = new Font("Segoe UI", 8f, FontStyle.Bold),
+                            ForeColor = Color.FromArgb(15, 16, 20),
+                            Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
                             TextAlign = ContentAlignment.MiddleCenter
                         };
                         var tt = new ToolTip();
@@ -2896,17 +3000,13 @@ namespace NightreignRelicExtractor
                     Button btnApply = new Button
                     {
                         Text = "⚡ Apply",
-                        Location = new Point(690, 18),
-                        Width = 90,
-                        Height = 34,
-                        BackColor = Color.FromArgb(200, 160, 45),
-                        ForeColor = Color.Black,
+                        Location = new Point(630, 20),
+                        Width = 95,
+                        Height = 36,
                         Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                        FlatStyle = FlatStyle.Flat,
-                        UseMnemonic = false,
                         Cursor = Cursors.Hand
                     };
-                    btnApply.FlatAppearance.BorderColor = Color.FromArgb(235, 195, 80);
+                    NightreignTheme.StyleGoldButton(btnApply);
                     btnApply.Click += (s, e) =>
                     {
                         string savePath = txtFilePath.Text.Trim('"', '\'');
@@ -2921,7 +3021,7 @@ namespace NightreignRelicExtractor
                             SaveRelicWriter.ApplyPreset(savePath, preset, out bak);
                             try { SystemSounds.Asterisk.Play(); } catch { }
                             lblOverlayStatus.Text = string.Format("✅ Preset '{0}' applied! Backup: {1}", preset.Name, Path.GetFileName(bak));
-                            lblOverlayStatus.ForeColor = Color.FromArgb(100, 240, 130);
+                            lblOverlayStatus.ForeColor = NightreignTheme.TextHighlight;
                             MessageBox.Show(this, string.Format("Loadout '{0}' applied to save file!\n\nBackup created at:\n{1}\n\n👉 Now exit to the Main Menu and click 'Continue' or 'Load Game' to activate in-game.", preset.Name, bak), "Loadout Applied", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         }
                         catch (Exception ex)
@@ -2931,21 +3031,31 @@ namespace NightreignRelicExtractor
                     };
                     card.Controls.Add(btnApply);
 
+                    // Load in Builder button
+                    Button btnLoad = new Button
+                    {
+                        Text = "⚱️ Builder",
+                        Location = new Point(735, 20),
+                        Width = 95,
+                        Height = 36,
+                        Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                        Cursor = Cursors.Hand
+                    };
+                    NightreignTheme.StylePrimaryBlueButton(btnLoad);
+                    btnLoad.Click += (s, e) => LoadPresetIntoBuilder(preset);
+                    card.Controls.Add(btnLoad);
+
                     // Delete button
                     Button btnDel = new Button
                     {
                         Text = "🗑️",
-                        Location = new Point(790, 18),
-                        Width = 70,
-                        Height = 34,
-                        BackColor = Color.FromArgb(45, 30, 35),
-                        ForeColor = Color.FromArgb(240, 140, 140),
+                        Location = new Point(838, 20),
+                        Width = 50,
+                        Height = 36,
                         Font = new Font("Segoe UI", 10f),
-                        FlatStyle = FlatStyle.Flat,
-                        UseMnemonic = false,
                         Cursor = Cursors.Hand
                     };
-                    btnDel.FlatAppearance.BorderColor = Color.FromArgb(80, 45, 50);
+                    NightreignTheme.StyleDangerButton(btnDel);
                     btnDel.Click += (s, e) =>
                     {
                         var res = MessageBox.Show(this, string.Format("Are you sure you want to delete preset '{0}'?", preset.Name), "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
