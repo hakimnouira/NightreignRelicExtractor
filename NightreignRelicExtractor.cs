@@ -17,14 +17,6 @@ namespace NightreignRelicExtractor
 {
     public static class Program
     {
-        [DllImport("kernel32.dll")]
-        static extern IntPtr GetConsoleWindow();
-
-        [DllImport("user32.dll")]
-        static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-        const int SW_HIDE = 0;
-
         // Nightreign AES-128-CBC Decryption Key
         public static readonly byte[] DS2_KEY = new byte[]
         {
@@ -205,13 +197,6 @@ namespace NightreignRelicExtractor
             if (args.Length > 0 && !args[0].Equals("--gui", StringComparison.OrdinalIgnoreCase))
             {
                 return RunCli(args[0]);
-            }
-
-            // Otherwise, hide the console window and launch the GUI
-            IntPtr consoleHwnd = GetConsoleWindow();
-            if (consoleHwnd != IntPtr.Zero)
-            {
-                ShowWindow(consoleHwnd, SW_HIDE);
             }
 
             Application.EnableVisualStyles();
