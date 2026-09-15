@@ -53,9 +53,8 @@ Furthermore, other players in co-op sessions do NOT need this tool installed - y
 ---
 
 ### SUPPORT THE PROJECT / BUY ME A COFFEE
-This tool is completely free for all players. If you enjoy using the tool and want to support continued development and updates, you can buy me a coffee via Ko-fi / PayPal:
+This tool is completely free for all players. If you enjoy using the tool and want to support continued development and updates, you can buy me a coffee on Ko-fi:
 
-👉 **[Buy Me a Coffee on Ko-fi (https://ko-fi.com/nouirahakim)](https://ko-fi.com/nouirahakim)**  
-*(PayPal: `nouiraa.hakimo@gmail.com`)*
+👉 **[Buy Me a Coffee on Ko-fi (https://ko-fi.com/nouirahakim)](https://ko-fi.com/nouirahakim)**
 
 Thank you so much for your support, Tarnished!
