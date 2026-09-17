@@ -16,6 +16,7 @@ presets.json
 .vs/
 bin/
 obj/
+dist/
 
 # Cloned reference repo
 ERN_RelicForge/
